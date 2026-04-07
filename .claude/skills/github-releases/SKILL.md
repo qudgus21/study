@@ -1,4 +1,5 @@
 ---
+name: github-releases
 description: GitHub 주요 프론트엔드 라이브러리의 최신 릴리스를 수집합니다.
 ---
 

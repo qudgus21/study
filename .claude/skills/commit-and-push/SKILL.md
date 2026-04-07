@@ -1,4 +1,5 @@
 ---
+name: commit-and-push
 description: 변경사항을 커밋하고 푸시까지 한번에 수행합니다.
 ---
 

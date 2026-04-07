@@ -1,4 +1,5 @@
 ---
+name: crawl-wanted
 description: 원티드 프론트엔드 채용공고를 크롤링하고 스킬 트렌드를 집계합니다.
 ---
 

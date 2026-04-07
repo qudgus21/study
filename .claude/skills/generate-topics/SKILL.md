@@ -1,4 +1,5 @@
 ---
+name: generate-topics
 description: JD 갭 분석 결과에서 부족한 스킬(RED)을 토픽으로 자동 생성합니다.
 ---
 

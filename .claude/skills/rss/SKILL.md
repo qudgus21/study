@@ -1,4 +1,5 @@
 ---
+name: rss
 description: RSS 아티클을 수집합니다. 6개 프론트엔드 소스에서 최신 아티클을 가져와 Firestore에 저장합니다.
 ---
 
