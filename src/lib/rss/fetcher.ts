@@ -12,6 +12,7 @@ export interface FetchedArticle {
 const parser = new XMLParser({
   ignoreAttributes: false,
   attributeNamePrefix: "@_",
+  processEntities: false,
 });
 
 function extractText(val: unknown): string {
@@ -95,15 +96,24 @@ export async function fetchRssSource(source: RssSource): Promise<FetchedArticle[
     });
 
     if (!res.ok) {
-      console.warn(`RSS fetch failed for ${source.name}: ${res.status}`);
+      console.warn(`[RSS] ${source.name}: HTTP ${res.status} ${res.statusText}`);
       return [];
     }
 
     const xml = await res.text();
+    if (!xml || xml.length < 100) {
+      console.warn(`[RSS] ${source.name}: Empty or too short response (${xml.length} bytes)`);
+      return [];
+    }
+
     const feed = parser.parse(xml) as Record<string, unknown>;
-    return parseItems(feed, source.name);
+    const items = parseItems(feed, source.name);
+    if (items.length === 0) {
+      console.warn(`[RSS] ${source.name}: Parsed 0 items. XML starts with: ${xml.slice(0, 200)}`);
+    }
+    return items;
   } catch (err) {
-    console.warn(`RSS fetch error for ${source.name}:`, err);
+    console.warn(`[RSS] ${source.name}: Fetch error:`, err instanceof Error ? err.message : err);
     return [];
   }
 }
