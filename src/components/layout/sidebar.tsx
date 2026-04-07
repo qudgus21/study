@@ -7,25 +7,21 @@ import {
   Target,
   Newspaper,
   BarChart3,
-  GitBranch,
   Library,
-  History,
   Settings,
   X,
   GraduationCap,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useUIStore } from "@/stores/ui-store";
-import { NotificationBell } from "./notification-bell";
 
 const navItems = [
   { href: "/dashboard", label: "대시보드", icon: LayoutDashboard },
   { href: "/missions", label: "미션", icon: Target },
   { href: "/articles", label: "아티클", icon: Newspaper },
   { href: "/jd-analysis", label: "JD 분석", icon: BarChart3 },
-  { href: "/releases", label: "릴리즈", icon: GitBranch },
+
   { href: "/topics", label: "토픽 관리", icon: Library },
-  { href: "/history", label: "히스토리", icon: History },
   { href: "/settings", label: "설정", icon: Settings },
 ];
 
@@ -56,7 +52,7 @@ export function Sidebar() {
             <GraduationCap className="text-primary h-6 w-6" />
             <span className="text-lg font-bold">Senior FE</span>
           </Link>
-          <button onClick={() => setSidebarOpen(false)} className="md:hidden">
+          <button onClick={() => setSidebarOpen(false)} className="cursor-pointer md:hidden">
             <X className="h-5 w-5" />
           </button>
         </div>
@@ -83,11 +79,6 @@ export function Sidebar() {
             );
           })}
         </nav>
-
-        {/* 하단 알림 */}
-        <div className="border-border border-t p-4">
-          <NotificationBell />
-        </div>
       </aside>
     </>
   );

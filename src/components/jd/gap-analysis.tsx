@@ -17,7 +17,7 @@ interface GapItem {
 interface GapData {
   gaps: GapItem[];
   summary: { green: number; yellow: number; red: number };
-  weekStart: string;
+  collectedDate: string | null;
 }
 
 interface GapAnalysisProps {

@@ -1,9 +1,8 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
-import { RefreshCw } from "lucide-react";
+import { useEffect, useState, useCallback, useRef } from "react";
+import { ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "lucide-react";
 import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { ArticleCard, type ArticleData } from "./article-card";
@@ -11,124 +10,175 @@ import { RSS_SOURCES } from "@/lib/rss/sources";
 
 type FilterTab = "all" | "unread" | "bookmarked";
 
-async function fetchArticles(params: {
-  source?: string;
-  unread?: boolean;
-  bookmarked?: boolean;
-  cursor?: string;
-}) {
-  const query = new URLSearchParams();
-  if (params.source) query.set("source", params.source);
-  if (params.unread) query.set("unread", "true");
-  if (params.bookmarked) query.set("bookmarked", "true");
-  if (params.cursor) query.set("cursor", params.cursor);
-  query.set("limit", "20");
+const PER_PAGE = 5;
+const PAGE_GROUP_SIZE = 5;
 
-  const res = await fetch(`/api/articles?${query}`);
-  if (!res.ok) throw new Error("Failed to fetch");
-  return res.json() as Promise<{
-    items: ArticleData[];
-    nextCursor: string | null;
-    hasMore: boolean;
-  }>;
-}
+const TECH_BLOG_SOURCES = [
+  "Korean FE Article",
+  "카카오 기술블로그",
+  "토스 기술블로그",
+  "우아한형제들 기술블로그",
+];
+const NEWS_SOURCES = ["긱뉴스", "요즘IT"];
+
+type SourceGroup = "" | "tech" | "news" | string;
 
 export function ArticlesClient() {
-  const [articles, setArticles] = useState<ArticleData[]>([]);
+  const [allArticles, setAllArticles] = useState<ArticleData[]>([]);
   const [loading, setLoading] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [syncing, setSyncing] = useState(false);
-  const [cursor, setCursor] = useState<string | null>(null);
-  const [hasMore, setHasMore] = useState(false);
   const [tab, setTab] = useState<FilterTab>("all");
-  const [sourceFilter, setSourceFilter] = useState<string>("");
+  const [sourceFilter, setSourceFilter] = useState<SourceGroup>("");
+  const [page, setPage] = useState(1);
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
-  const load = useCallback(
-    async (reset = true) => {
-      if (reset) setLoading(true);
-      else setLoadingMore(true);
-
-      try {
-        const data = await fetchArticles({
-          unread: tab === "unread",
-          bookmarked: tab === "bookmarked",
-          source: sourceFilter || undefined,
-          cursor: reset ? undefined : (cursor ?? undefined),
-        });
-
-        setArticles((prev) => (reset ? data.items : [...prev, ...data.items]));
-        setCursor(data.nextCursor);
-        setHasMore(data.hasMore);
-      } catch {
-        toast.error("아티클을 불러오지 못했습니다.");
-      } finally {
-        setLoading(false);
-        setLoadingMore(false);
-      }
-    },
-    [tab, sourceFilter, cursor],
-  );
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/articles");
+      if (!res.ok) throw new Error("Failed to fetch");
+      const data = (await res.json()) as { items: ArticleData[] };
+      setAllArticles(data.items);
+    } catch {
+      toast.error("아티클을 불러오지 못했습니다.");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    load(true);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tab, sourceFilter]);
+    load();
+    setPage(1);
+  }, [load]);
+
+  // 드롭다운 외부 클릭 닫기
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setDropdownOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
 
   function handleUpdate(id: string, changes: Partial<ArticleData>) {
-    setArticles((prev) => prev.map((a) => (a.id === id ? { ...a, ...changes } : a)));
+    setAllArticles((prev) => prev.map((a) => (a.id === id ? { ...a, ...changes } : a)));
   }
 
-  async function handleSync() {
-    setSyncing(true);
-    try {
-      const res = await fetch("/api/cron/rss");
-      const data = (await res.json()) as { totalAdded: number };
-      toast.success(`${data.totalAdded}개 새 아티클 수집됨`);
-      load(true);
-    } catch {
-      toast.error("RSS 수집에 실패했습니다.");
-    } finally {
-      setSyncing(false);
-    }
+  // 소스 필터 적용
+  const sourceFiltered = allArticles.filter((a) => {
+    if (!sourceFilter) return true;
+    if (sourceFilter === "tech") return TECH_BLOG_SOURCES.includes(a.source);
+    if (sourceFilter === "news") return NEWS_SOURCES.includes(a.source);
+    return a.source === sourceFilter;
+  });
+
+  const filtered =
+    tab === "unread"
+      ? sourceFiltered.filter((a) => !a.is_read)
+      : tab === "bookmarked"
+        ? sourceFiltered.filter((a) => a.is_bookmarked)
+        : sourceFiltered;
+
+  const counts = {
+    all: sourceFiltered.length,
+    unread: sourceFiltered.filter((a) => !a.is_read).length,
+    bookmarked: sourceFiltered.filter((a) => a.is_bookmarked).length,
+  };
+
+  const total = filtered.length;
+  const totalPages = Math.max(1, Math.ceil(total / PER_PAGE));
+  const paged = filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE);
+
+  function goToPage(p: number) {
+    setPage(p);
+    window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
-  const tabArticles = articles;
+  const sourceLabels: Record<string, string> = {
+    "": "전체",
+    tech: "기술 블로그",
+    news: "뉴스",
+  };
+  const sourceLabel = sourceLabels[sourceFilter] ?? sourceFilter;
+
+  function selectSource(value: SourceGroup) {
+    setSourceFilter(value);
+    setDropdownOpen(false);
+    setPage(1);
+  }
 
   return (
     <div className="space-y-4">
-      {/* 상단 액션 */}
-      <div className="flex items-center justify-between">
-        <select
-          value={sourceFilter}
-          onChange={(e) => setSourceFilter(e.target.value)}
-          className="border-input bg-background rounded-md border px-2 py-1.5 text-sm"
+      {/* 소스 드롭다운 */}
+      <div ref={dropdownRef} className="relative inline-block">
+        <button
+          onClick={() => setDropdownOpen((v) => !v)}
+          className="border-input bg-background hover:bg-accent flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm transition-colors"
         >
-          <option value="">전체 소스</option>
-          {RSS_SOURCES.map((s) => (
-            <option key={s.id} value={s.name}>
-              {s.name}
-            </option>
-          ))}
-        </select>
-
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={handleSync}
-          disabled={syncing}
-          className="gap-2"
-        >
-          <RefreshCw className={`h-3.5 w-3.5 ${syncing ? "animate-spin" : ""}`} />
-          RSS 수집
-        </Button>
+          {sourceLabel}
+          <ChevronDown className="h-3.5 w-3.5 opacity-50" />
+        </button>
+        {dropdownOpen && (
+          <div className="bg-popover border-border absolute left-0 z-50 mt-1 w-56 rounded-md border py-1 shadow-md">
+            <button
+              onClick={() => selectSource("")}
+              className={`hover:bg-accent w-full px-3 py-1.5 text-left text-sm transition-colors ${
+                !sourceFilter ? "text-primary font-medium" : ""
+              }`}
+            >
+              전체
+            </button>
+            <div className="border-border my-1 border-t" />
+            <button
+              onClick={() => selectSource("tech")}
+              className={`hover:bg-accent w-full px-3 py-2 text-left transition-colors ${
+                sourceFilter === "tech" ? "text-primary font-medium" : ""
+              }`}
+            >
+              <span className="text-sm">기술 블로그</span>
+              <span className="text-muted-foreground block text-[11px]">
+                Korean FE · 카카오 · 토스 · 우아한
+              </span>
+            </button>
+            <button
+              onClick={() => selectSource("news")}
+              className={`hover:bg-accent w-full px-3 py-2 text-left transition-colors ${
+                sourceFilter === "news" ? "text-primary font-medium" : ""
+              }`}
+            >
+              <span className="text-sm">뉴스</span>
+              <span className="text-muted-foreground block text-[11px]">긱뉴스 · 요즘IT</span>
+            </button>
+            <div className="border-border my-1 border-t" />
+            {RSS_SOURCES.map((s) => (
+              <button
+                key={s.id}
+                onClick={() => selectSource(s.name)}
+                className={`hover:bg-accent w-full px-3 py-1.5 text-left text-sm transition-colors ${
+                  sourceFilter === s.name ? "text-primary font-medium" : ""
+                }`}
+              >
+                {s.name}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* 탭 필터 */}
-      <Tabs value={tab} onValueChange={(v) => setTab(v as FilterTab)}>
+      <Tabs
+        value={tab}
+        onValueChange={(v) => {
+          setTab(v as FilterTab);
+          setPage(1);
+        }}
+      >
         <TabsList>
-          <TabsTrigger value="all">전체</TabsTrigger>
-          <TabsTrigger value="unread">안 읽음</TabsTrigger>
-          <TabsTrigger value="bookmarked">북마크</TabsTrigger>
+          <TabsTrigger value="all">전체 ({counts.all})</TabsTrigger>
+          <TabsTrigger value="unread">안 읽음 ({counts.unread})</TabsTrigger>
+          <TabsTrigger value="bookmarked">북마크 ({counts.bookmarked})</TabsTrigger>
         </TabsList>
 
         <TabsContent value={tab} className="mt-4">
@@ -138,33 +188,87 @@ export function ArticlesClient() {
                 <Skeleton key={i} className="h-24 w-full rounded-lg" />
               ))}
             </div>
-          ) : tabArticles.length === 0 ? (
+          ) : total === 0 ? (
             <div className="text-muted-foreground flex h-48 items-center justify-center rounded-lg border border-dashed">
-              <div className="text-center">
-                <p className="text-sm">아티클이 없습니다.</p>
-                <p className="mt-1 text-xs">RSS 수집 버튼을 눌러 아티클을 가져오세요.</p>
-              </div>
+              <p className="text-sm">아티클이 없습니다.</p>
             </div>
           ) : (
             <div className="space-y-3">
-              {tabArticles.map((article) => (
+              {paged.map((article) => (
                 <ArticleCard key={article.id} article={article} onUpdate={handleUpdate} />
               ))}
 
-              {hasMore && (
-                <Button
-                  variant="outline"
-                  className="w-full"
-                  onClick={() => load(false)}
-                  disabled={loadingMore}
-                >
-                  {loadingMore ? "불러오는 중..." : "더 보기"}
-                </Button>
+              {/* 페이지네이션 */}
+              {totalPages > 1 && (
+                <Pagination page={page} totalPages={totalPages} onPage={goToPage} />
               )}
             </div>
           )}
         </TabsContent>
       </Tabs>
+    </div>
+  );
+}
+
+function Pagination({
+  page,
+  totalPages,
+  onPage,
+}: {
+  page: number;
+  totalPages: number;
+  onPage: (p: number) => void;
+}) {
+  const groupStart = Math.floor((page - 1) / PAGE_GROUP_SIZE) * PAGE_GROUP_SIZE + 1;
+  const groupEnd = Math.min(groupStart + PAGE_GROUP_SIZE - 1, totalPages);
+  const pages = Array.from({ length: groupEnd - groupStart + 1 }, (_, i) => groupStart + i);
+
+  const btnClass =
+    "flex h-8 w-8 items-center justify-center rounded-md text-sm transition-colors disabled:opacity-30 disabled:cursor-default";
+
+  return (
+    <div className="flex items-center justify-center gap-1 pt-2">
+      <button
+        onClick={() => onPage(1)}
+        disabled={page === 1}
+        className={`${btnClass} hover:bg-accent text-muted-foreground`}
+      >
+        <ChevronsLeft className="h-4 w-4" />
+      </button>
+      <button
+        onClick={() => onPage(page - 1)}
+        disabled={page === 1}
+        className={`${btnClass} hover:bg-accent text-muted-foreground`}
+      >
+        <ChevronLeft className="h-4 w-4" />
+      </button>
+      {pages.map((p) => (
+        <button
+          key={p}
+          onClick={() => onPage(p)}
+          className={`${btnClass} ${
+            p === page
+              ? "bg-primary text-primary-foreground font-medium"
+              : "hover:bg-accent text-muted-foreground"
+          }`}
+        >
+          {p}
+        </button>
+      ))}
+      <button
+        onClick={() => onPage(page + 1)}
+        disabled={page === totalPages}
+        className={`${btnClass} hover:bg-accent text-muted-foreground`}
+      >
+        <ChevronRight className="h-4 w-4" />
+      </button>
+      <button
+        onClick={() => onPage(totalPages)}
+        disabled={page === totalPages}
+        className={`${btnClass} hover:bg-accent text-muted-foreground`}
+      >
+        <ChevronsRight className="h-4 w-4" />
+      </button>
     </div>
   );
 }

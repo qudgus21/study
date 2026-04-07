@@ -1,82 +1,121 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { RefreshCw, Play } from "lucide-react";
+import { useEffect, useState, useRef } from "react";
+import {
+  RefreshCw,
+  Play,
+  Sparkles,
+  BarChart3,
+  Newspaper,
+  Rss,
+  Briefcase,
+  SlidersHorizontal,
+  Tag,
+  X,
+  Plus,
+} from "lucide-react";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 
 interface Settings {
-  carry_over_limit: number;
-  weekly_goal_concept: number;
-  weekly_goal_discussion: number;
-  weekly_goal_code: number;
   pass_score: number;
+  article_keywords: string[];
 }
 
-type CronJob = {
-  label: string;
-  url: string;
-  description: string;
-};
-
-const CRON_JOBS: CronJob[] = [
-  { label: "RSS 수집", url: "/api/cron/rss", description: "6개 RSS 소스에서 아티클 수집" },
+const TOPIC_GENERATORS = [
   {
+    key: "ai",
+    label: "AI 자율 생성",
+    description: "시니어 FE 개발자에게 적합한 토픽을 AI가 생성",
+    icon: Sparkles,
+    url: "/api/topics/generate/ai",
+  },
+  {
+    key: "article",
+    label: "아티클 기반",
+    description: "수집된 아티클에서 학습 토픽 추출",
+    icon: Newspaper,
+    url: "/api/topics/generate/article",
+  },
+  {
+    key: "jd",
+    label: "JD 갭 분석",
+    description: "시장 요구 vs 내 역량 비교 → RED 스킬 토픽 생성",
+    icon: BarChart3,
+    url: "/api/topics/generate/jd",
+  },
+] as const;
+
+const DATA_COLLECTORS = [
+  {
+    key: "rss",
+    label: "아티클 수집",
+    description: "Korean FE Article, 긱뉴스, 요즘IT, 카카오, 토스, 우아한형제들",
+    icon: Rss,
+    url: "/api/cron/rss",
+  },
+  {
+    key: "wanted",
     label: "원티드 JD 수집",
+    description: "원티드 프론트엔드 5년+ 전체 JD 수집 및 스킬 집계",
+    icon: Briefcase,
     url: "/api/cron/wanted",
-    description: "프론트엔드 JD 20개 수집 및 스킬 집계",
   },
-  { label: "GitHub 릴리즈", url: "/api/cron/github", description: "9개 repo 최신 릴리즈 확인" },
-  {
-    label: "갭 토픽 생성",
-    url: "/api/cron/generate-topics",
-    description: "RED 갭 스킬 토픽 자동 생성",
-  },
-  { label: "주간 처리", url: "/api/cron/daily", description: "새 주 생성 및 미완료 미션 이월" },
-];
+] as const;
 
-function NumberInput({
-  label,
-  value,
-  onChange,
-  min = 1,
-  max = 100,
-}: {
-  label: string;
-  value: number;
-  onChange: (v: number) => void;
-  min?: number;
-  max?: number;
-}) {
-  return (
-    <div className="flex items-center justify-between">
-      <label className="text-sm">{label}</label>
-      <div className="flex items-center gap-2">
-        <button
-          onClick={() => onChange(Math.max(min, value - 1))}
-          className="border-input flex h-7 w-7 items-center justify-center rounded-md border text-sm"
-        >
-          -
-        </button>
-        <span className="w-8 text-center text-sm font-medium">{value}</span>
-        <button
-          onClick={() => onChange(Math.min(max, value + 1))}
-          className="border-input flex h-7 w-7 items-center justify-center rounded-md border text-sm"
-        >
-          +
-        </button>
-      </div>
-    </div>
-  );
+const STORAGE_KEY = "settings_last_run";
+
+function getLastRunMap(): Record<string, string> {
+  try {
+    return JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "{}");
+  } catch {
+    return {};
+  }
+}
+
+function saveLastRun(key: string) {
+  const map = getLastRunMap();
+  map[key] = new Date().toISOString();
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(map));
+}
+
+function formatLastRun(iso: string | undefined): string | null {
+  if (!iso) return null;
+  const d = new Date(iso);
+  const now = new Date();
+  const diffMs = now.getTime() - d.getTime();
+  const diffMin = Math.floor(diffMs / 60_000);
+  if (diffMin < 1) return "방금 전";
+  if (diffMin < 60) return `${diffMin}분 전`;
+  const diffHour = Math.floor(diffMin / 60);
+  if (diffHour < 24) return `${diffHour}시간 전`;
+  const diffDay = Math.floor(diffHour / 24);
+  if (diffDay < 7) return `${diffDay}일 전`;
+  return `${d.getMonth() + 1}/${d.getDate()}`;
 }
 
 export function SettingsClient() {
   const [settings, setSettings] = useState<Settings | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [runningCron, setRunningCron] = useState<string | null>(null);
+  const [topicCounts, setTopicCounts] = useState({ ai: 5, jd: 5, article: 5 });
+  const [generatingType, setGeneratingType] = useState<string | null>(null);
+  const [collectingKey, setCollectingKey] = useState<string | null>(null);
+  const [lastRunMap, setLastRunMap] = useState<Record<string, string>>({});
+  const [rssDays, setRssDays] = useState(1);
+  const [showKeywords, setShowKeywords] = useState(false);
+  const [newKeyword, setNewKeyword] = useState("");
+  const [collectModal, setCollectModal] = useState<{
+    open: boolean;
+    label: string;
+    logs: string[];
+    done: boolean;
+  }>({ open: false, label: "", logs: [], done: false });
+  const keywordInputRef = useRef<HTMLInputElement>(null);
+  const composingRef = useRef(false);
+  const modalLogsRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     fetch("/api/settings")
@@ -84,7 +123,14 @@ export function SettingsClient() {
       .then(setSettings)
       .catch(console.error)
       .finally(() => setLoading(false));
+    setLastRunMap(getLastRunMap());
   }, []);
+
+  useEffect(() => {
+    if (modalLogsRef.current) {
+      modalLogsRef.current.scrollTop = modalLogsRef.current.scrollHeight;
+    }
+  }, [collectModal.logs]);
 
   async function handleSave() {
     if (!settings) return;
@@ -103,104 +149,397 @@ export function SettingsClient() {
     }
   }
 
-  async function handleRunCron(job: CronJob) {
-    setRunningCron(job.url);
+  async function handleGenerateTopics(gen: (typeof TOPIC_GENERATORS)[number]) {
+    setGeneratingType(gen.key);
     try {
-      const res = await fetch(job.url);
+      const res = await fetch(gen.url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ count: topicCounts[gen.key] }),
+      });
       const data = (await res.json()) as Record<string, unknown>;
-      toast.success(`${job.label} 완료: ${JSON.stringify(data).slice(0, 100)}`);
+      if (data.error) {
+        toast.error(`${gen.label} 실패: ${data.error}`);
+      } else {
+        toast.success(`${gen.label}: ${data.created}개 토픽 생성 완료`);
+        saveLastRun(`topic_${gen.key}`);
+        setLastRunMap(getLastRunMap());
+      }
     } catch {
-      toast.error(`${job.label} 실패`);
+      toast.error(`${gen.label} 실패`);
     } finally {
-      setRunningCron(null);
+      setGeneratingType(null);
     }
+  }
+
+  async function handleCollect(collector: (typeof DATA_COLLECTORS)[number]) {
+    setCollectingKey(collector.key);
+    setCollectModal({ open: true, label: collector.label, logs: [], done: false });
+
+    try {
+      const url = collector.key === "rss" ? `${collector.url}?days=${rssDays}` : collector.url;
+      const res = await fetch(url);
+      const reader = res.body?.getReader();
+      if (!reader) throw new Error("No reader");
+
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() ?? "";
+
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue;
+          try {
+            const data = JSON.parse(line.slice(6)) as Record<string, unknown>;
+            const log = formatSSEEvent(collector.key, data);
+            if (log) {
+              setCollectModal((prev) => ({
+                ...prev,
+                logs: [...prev.logs, log],
+                done: data.type === "done",
+              }));
+            }
+          } catch {
+            /* skip */
+          }
+        }
+      }
+
+      saveLastRun(`collect_${collector.key}`);
+      setLastRunMap(getLastRunMap());
+    } catch {
+      setCollectModal((prev) => ({ ...prev, logs: [...prev.logs, "수집 실패"], done: true }));
+    } finally {
+      setCollectingKey(null);
+    }
+  }
+
+  function formatSSEEvent(key: string, data: Record<string, unknown>): string | null {
+    if (key === "rss") {
+      if (data.type === "source") return `${data.source} 수집 중...`;
+      if (data.type === "progress")
+        return `${data.source}: ${data.added}건 추가 (총 ${data.totalAdded}건)`;
+      if (data.type === "ai") return `AI 필터링 중... (${data.count}건 판단)`;
+      if (data.type === "ai_done") return `AI 필터: ${data.aiAdded}건 추가`;
+      if (data.type === "done") return `수집 완료: 총 ${data.totalAdded}건`;
+      if (data.type === "error") return `오류: ${data.message}`;
+    }
+    if (key === "wanted") {
+      if (data.type === "list") return `공고 ${data.total}건 발견`;
+      if (data.type === "progress") {
+        const dup = data.duplicate ? " (중복)" : "";
+        return `${data.current}/${data.total} ${data.company} - ${data.position}${dup}`;
+      }
+      if (data.type === "skills") return `${data.message}`;
+      if (data.type === "done")
+        return `완료: ${data.added}건 추가, ${data.skipped}건 중복, 스킬 ${data.skillsTracked}개`;
+      if (data.type === "error") return `오류: ${data.message}`;
+    }
+    return null;
+  }
+
+  function addKeyword() {
+    const kw = newKeyword.trim();
+    if (!kw || !settings) return;
+    if (settings.article_keywords.some((k) => k.toLowerCase() === kw.toLowerCase())) {
+      toast.error("이미 존재하는 키워드입니다.");
+      return;
+    }
+    setSettings({ ...settings, article_keywords: [...settings.article_keywords, kw] });
+    setNewKeyword("");
+    keywordInputRef.current?.focus();
+  }
+
+  function removeKeyword(kw: string) {
+    if (!settings) return;
+    setSettings({
+      ...settings,
+      article_keywords: settings.article_keywords.filter((k) => k !== kw),
+    });
   }
 
   if (loading) return <Skeleton className="h-64 w-full" />;
   if (!settings) return null;
 
   return (
-    <div className="max-w-lg space-y-4">
-      {/* 주간 목표 */}
+    <div className="max-w-lg space-y-6">
+      {/* 토픽 생성 */}
       <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm">주간 목표</CardTitle>
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2 text-sm">
+            <Sparkles className="h-4 w-4" />
+            토픽 생성
+          </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-3">
-          <NumberInput
-            label="개념 미션 목표"
-            value={settings.weekly_goal_concept}
-            onChange={(v) => setSettings((s) => (s ? { ...s, weekly_goal_concept: v } : s))}
-          />
-          <NumberInput
-            label="토론 미션 목표"
-            value={settings.weekly_goal_discussion}
-            onChange={(v) => setSettings((s) => (s ? { ...s, weekly_goal_discussion: v } : s))}
-          />
-          <NumberInput
-            label="코드 미션 목표"
-            value={settings.weekly_goal_code}
-            onChange={(v) => setSettings((s) => (s ? { ...s, weekly_goal_code: v } : s))}
-          />
-        </CardContent>
-      </Card>
-
-      {/* 시스템 설정 */}
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm">시스템</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <NumberInput
-            label="이월 상한 (미션 수)"
-            value={settings.carry_over_limit}
-            onChange={(v) => setSettings((s) => (s ? { ...s, carry_over_limit: v } : s))}
-            max={15}
-          />
-          <NumberInput
-            label="통과 기준 점수"
-            value={settings.pass_score}
-            onChange={(v) => setSettings((s) => (s ? { ...s, pass_score: v } : s))}
-            min={50}
-            max={100}
-          />
-        </CardContent>
-      </Card>
-
-      <Button onClick={handleSave} disabled={saving} className="w-full">
-        {saving ? "저장 중..." : "설정 저장"}
-      </Button>
-
-      {/* 수동 Cron 트리거 */}
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm">수동 실행</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-2">
-          {CRON_JOBS.map((job) => (
-            <div key={job.url} className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium">{job.label}</p>
-                <p className="text-muted-foreground text-xs">{job.description}</p>
+        <CardContent className="space-y-4">
+          {TOPIC_GENERATORS.map((gen) => {
+            const lastRun = formatLastRun(lastRunMap[`topic_${gen.key}`]);
+            return (
+              <div key={gen.key} className="space-y-2">
+                <div className="flex items-center gap-2.5">
+                  <gen.icon className="text-muted-foreground h-4 w-4 shrink-0" />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-medium">{gen.label}</p>
+                      {lastRun && (
+                        <span className="text-muted-foreground text-[10px]">{lastRun}</span>
+                      )}
+                    </div>
+                    <p className="text-muted-foreground text-xs">{gen.description}</p>
+                  </div>
+                </div>
+                <div className="flex items-center justify-end gap-2">
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      onClick={() =>
+                        setTopicCounts((c) => ({ ...c, [gen.key]: Math.max(1, c[gen.key] - 1) }))
+                      }
+                      className="border-input hover:bg-accent flex h-6 w-6 items-center justify-center rounded border text-xs transition-colors"
+                    >
+                      -
+                    </button>
+                    <span className="w-6 text-center text-sm font-medium tabular-nums">
+                      {topicCounts[gen.key]}
+                    </span>
+                    <button
+                      onClick={() =>
+                        setTopicCounts((c) => ({ ...c, [gen.key]: Math.min(20, c[gen.key] + 1) }))
+                      }
+                      className="border-input hover:bg-accent flex h-6 w-6 items-center justify-center rounded border text-xs transition-colors"
+                    >
+                      +
+                    </button>
+                    <span className="text-muted-foreground text-xs">개</span>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleGenerateTopics(gen)}
+                    disabled={generatingType !== null}
+                    className="shrink-0 gap-1.5"
+                  >
+                    {generatingType === gen.key ? (
+                      <RefreshCw className="h-3 w-3 animate-spin" />
+                    ) : (
+                      <Play className="h-3 w-3" />
+                    )}
+                    생성
+                  </Button>
+                </div>
+                {gen.key !== "jd" && <div className="border-border border-t" />}
               </div>
+            );
+          })}
+        </CardContent>
+      </Card>
+
+      {/* 데이터 수집 */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2 text-sm">
+            <Rss className="h-4 w-4" />
+            데이터 수집
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {DATA_COLLECTORS.map((collector, i) => {
+            const lastRun = formatLastRun(lastRunMap[`collect_${collector.key}`]);
+            return (
+              <div key={collector.key} className="space-y-2">
+                <div className="flex items-center gap-2.5">
+                  <collector.icon className="text-muted-foreground h-4 w-4 shrink-0" />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-medium">{collector.label}</p>
+                      {lastRun && (
+                        <span className="text-muted-foreground text-[10px]">{lastRun}</span>
+                      )}
+                    </div>
+                    <p className="text-muted-foreground text-xs">{collector.description}</p>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between">
+                  {collector.key === "rss" ? (
+                    <button
+                      onClick={() => setShowKeywords((v) => !v)}
+                      className="text-muted-foreground hover:text-foreground flex items-center gap-1 text-xs transition-colors"
+                    >
+                      <Tag className="h-3 w-3" />
+                      필터 키워드 ({settings.article_keywords.length})
+                    </button>
+                  ) : (
+                    <div />
+                  )}
+                  <div className="flex items-center gap-2">
+                    {collector.key === "rss" && (
+                      <div className="flex items-center gap-1">
+                        <input
+                          type="number"
+                          min={1}
+                          max={90}
+                          value={rssDays}
+                          onChange={(e) =>
+                            setRssDays(Math.min(90, Math.max(1, Number(e.target.value) || 1)))
+                          }
+                          className="border-input bg-background w-12 rounded-md border px-1.5 py-1 text-center text-xs tabular-nums"
+                        />
+                        <span className="text-muted-foreground text-xs">일</span>
+                      </div>
+                    )}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleCollect(collector)}
+                      disabled={collectingKey !== null}
+                      className="shrink-0 gap-1.5"
+                    >
+                      {collectingKey === collector.key ? (
+                        <RefreshCw className="h-3 w-3 animate-spin" />
+                      ) : (
+                        <Play className="h-3 w-3" />
+                      )}
+                      실행
+                    </Button>
+                  </div>
+                </div>
+                {collector.key === "rss" && showKeywords && (
+                  <div className="space-y-2 rounded-md border p-3">
+                    <div className="flex flex-wrap gap-1.5">
+                      {settings.article_keywords.map((kw) => (
+                        <span
+                          key={kw}
+                          className="bg-accent flex items-center gap-1 rounded-md px-2 py-0.5 text-xs"
+                        >
+                          {kw}
+                          <button
+                            onClick={() => removeKeyword(kw)}
+                            className="text-muted-foreground hover:text-foreground transition-colors"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                    <div className="flex gap-1.5">
+                      <input
+                        ref={keywordInputRef}
+                        type="text"
+                        value={newKeyword}
+                        onChange={(e) => setNewKeyword(e.target.value)}
+                        onCompositionStart={() => {
+                          composingRef.current = true;
+                        }}
+                        onCompositionEnd={() => {
+                          composingRef.current = false;
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" && !composingRef.current) addKeyword();
+                        }}
+                        placeholder="키워드 추가"
+                        className="border-input bg-background flex-1 rounded-md border px-2 py-1 text-xs"
+                      />
+                      <Button variant="outline" size="sm" onClick={addKeyword} className="h-7 px-2">
+                        <Plus className="h-3 w-3" />
+                      </Button>
+                    </div>
+                    <p className="text-muted-foreground text-[10px]">
+                      Korean FE Article은 필터 없이 전부 수집. 나머지는 키워드 → AI 순으로 필터링.
+                    </p>
+                  </div>
+                )}
+                {i < DATA_COLLECTORS.length - 1 && <div className="border-border border-t" />}
+              </div>
+            );
+          })}
+        </CardContent>
+      </Card>
+
+      {/* 시스템 */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2 text-sm">
+            <SlidersHorizontal className="h-4 w-4" />
+            시스템
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="flex items-center justify-between">
+            <label className="text-sm">통과 기준 점수</label>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() =>
+                  setSettings((s) => (s ? { ...s, pass_score: Math.max(50, s.pass_score - 5) } : s))
+                }
+                className="border-input hover:bg-accent flex h-7 w-7 items-center justify-center rounded-md border text-sm transition-colors"
+              >
+                -
+              </button>
+              <span className="w-10 text-center text-sm font-medium tabular-nums">
+                {settings.pass_score}
+              </span>
+              <button
+                onClick={() =>
+                  setSettings((s) =>
+                    s ? { ...s, pass_score: Math.min(100, s.pass_score + 5) } : s,
+                  )
+                }
+                className="border-input hover:bg-accent flex h-7 w-7 items-center justify-center rounded-md border text-sm transition-colors"
+              >
+                +
+              </button>
+            </div>
+          </div>
+          <Button onClick={handleSave} disabled={saving} variant="outline" className="w-full">
+            {saving ? "저장 중..." : "설정 저장"}
+          </Button>
+        </CardContent>
+      </Card>
+      {/* 수집 모달 */}
+      {collectModal.open && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div
+            className="bg-background/50 absolute inset-0"
+            onClick={() => setCollectModal((p) => ({ ...p, open: false }))}
+          />
+          <div className="bg-card border-border relative w-full max-w-md rounded-lg border p-5 shadow-lg">
+            <div className="mb-3 flex items-center gap-2">
+              {!collectModal.done && <RefreshCw className="h-4 w-4 animate-spin" />}
+              <p className="text-sm font-medium">
+                {collectModal.label} {collectModal.done ? "완료" : "수집 중..."}
+              </p>
+            </div>
+            <div
+              ref={modalLogsRef}
+              className="bg-muted max-h-60 space-y-0.5 overflow-y-auto rounded-md p-3"
+            >
+              {collectModal.logs.map((log, i) => (
+                <p key={i} className="text-muted-foreground text-xs">
+                  {log}
+                </p>
+              ))}
+              {collectModal.logs.length === 0 && (
+                <p className="text-muted-foreground text-xs">준비 중...</p>
+              )}
+            </div>
+            {collectModal.done && (
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => handleRunCron(job)}
-                disabled={runningCron !== null}
-                className="shrink-0 gap-1.5"
+                className="mt-3 w-full"
+                onClick={() => setCollectModal((p) => ({ ...p, open: false }))}
               >
-                {runningCron === job.url ? (
-                  <RefreshCw className="h-3 w-3 animate-spin" />
-                ) : (
-                  <Play className="h-3 w-3" />
-                )}
-                실행
+                닫기
               </Button>
-            </div>
-          ))}
-        </CardContent>
-      </Card>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

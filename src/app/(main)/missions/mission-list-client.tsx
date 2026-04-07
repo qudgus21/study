@@ -19,7 +19,16 @@ export function MissionListClient() {
         if (!res.ok) throw new Error("Failed to fetch");
         const data = await res.json();
 
-        const mapped: MissionCardData[] = (data as Record<string, unknown>[]).map((m) => ({
+        interface MissionResponse {
+          id: string;
+          topic_title?: string;
+          mission_type: "concept" | "discussion" | "code";
+          status: "pending" | "in_progress" | "passed" | "failed";
+          category_name: string;
+          attempts?: { score?: number }[];
+        }
+
+        const mapped: MissionCardData[] = (data as MissionResponse[]).map((m) => ({
           id: m.id,
           title: m.topic_title ?? "제목 없음",
           missionType: m.mission_type,
@@ -27,8 +36,9 @@ export function MissionListClient() {
           categoryName: m.category_name,
           attemptCount: m.attempts?.length ?? 0,
           lastScore:
-            m.attempts?.length > 0 ? (m.attempts[m.attempts.length - 1]?.score ?? null) : null,
-          isCarriedOver: m.is_carried_over,
+            m.attempts && m.attempts.length > 0
+              ? (m.attempts[m.attempts.length - 1]?.score ?? null)
+              : null,
         }));
 
         setMissions(mapped);
@@ -66,16 +76,16 @@ export function MissionListClient() {
       {/* 진행 요약 */}
       <div className="grid grid-cols-3 gap-3">
         <div className="rounded-lg border p-3 text-center">
-          <div className="text-2xl font-bold text-blue-600">{stats.concept}/5</div>
-          <div className="text-muted-foreground text-xs">개념</div>
+          <div className="text-2xl font-bold text-blue-600">{stats.concept}</div>
+          <div className="text-muted-foreground text-xs">개념 통과</div>
         </div>
         <div className="rounded-lg border p-3 text-center">
-          <div className="text-2xl font-bold text-purple-600">{stats.discussion}/5</div>
-          <div className="text-muted-foreground text-xs">토론</div>
+          <div className="text-2xl font-bold text-purple-600">{stats.discussion}</div>
+          <div className="text-muted-foreground text-xs">토론 통과</div>
         </div>
         <div className="rounded-lg border p-3 text-center">
-          <div className="text-2xl font-bold text-green-600">{stats.code}/5</div>
-          <div className="text-muted-foreground text-xs">코드</div>
+          <div className="text-2xl font-bold text-green-600">{stats.code}</div>
+          <div className="text-muted-foreground text-xs">코드 통과</div>
         </div>
       </div>
 
@@ -91,8 +101,8 @@ export function MissionListClient() {
         <TabsContent value={filter} className="mt-4 space-y-3">
           {filtered.length === 0 ? (
             <div className="text-muted-foreground py-12 text-center">
-              <p>이번 주 미션이 없습니다.</p>
-              <p className="text-xs">토픽 생성 후 미션이 자동으로 배정됩니다.</p>
+              <p>미션이 없습니다.</p>
+              <p className="text-xs">토픽에서 미션을 생성해보세요.</p>
             </div>
           ) : (
             filtered.map((mission) => <MissionCard key={mission.id} mission={mission} />)

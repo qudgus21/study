@@ -4,13 +4,13 @@ import { adminDb } from "@/lib/firebase/admin";
 /**
  * POST /api/articles/[id]/generate-topic
  * 아티클에서 토픽을 생성한다.
- * body: { category_id, category_name, mission_type }
+ * body: { category_name, mission_type }
  */
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
     const body = await request.json();
-    const { category_id, category_name, mission_type = "concept" } = body;
+    const { category_name, mission_type = "concept" } = body;
 
     // 아티클 가져오기
     const articleDoc = await adminDb.collection("articles").doc(id).get();
@@ -26,10 +26,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       title: article.title as string,
       description: article.summary as string,
       mission_type,
-      category_id: category_id ?? null,
       category_name: category_name ?? article.source ?? "기타",
-      difficulty: "intermediate",
-      source_type: "rss",
+      source_type: "article",
       source_ref: article.url as string,
       code_snippet: null,
       is_used: false,

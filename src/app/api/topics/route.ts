@@ -35,7 +35,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { title, description, mission_type, category_name, difficulty, code_snippet } = body;
+    const { title, description, mission_type, category_name, code_snippet } = body;
 
     if (!title || !mission_type || !category_name) {
       return NextResponse.json(
@@ -48,10 +48,8 @@ export async function POST(request: NextRequest) {
       title,
       description: description ?? null,
       mission_type,
-      category_id: null,
       category_name,
-      difficulty: difficulty ?? "intermediate",
-      source_type: "manual",
+      source_type: "ai",
       source_ref: null,
       code_snippet: code_snippet ?? null,
       is_used: false,

@@ -1,55 +1,51 @@
 import { NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebase/admin";
-import { getCurrentWeekStartString } from "@/lib/utils/date";
 
 /**
- * GET /api/jd/trends?weeks=4
- * 최근 N주 스킬 트렌드 데이터 반환
+ * GET /api/jd/trends
+ * 최근 수집일별 스킬 트렌드 데이터 반환
  */
 export async function GET() {
   try {
-    // 최근 4주 데이터
-    const weeks = 4;
-    const currentWeekStart = getCurrentWeekStartString();
-    const weekStarts: string[] = [];
+    // 최근 수집일 4개 찾기
+    const allSnap = await adminDb
+      .collection("jd_skill_trends")
+      .orderBy("collected_date", "desc")
+      .get();
 
-    for (let i = 0; i < weeks; i++) {
-      const d = new Date(currentWeekStart);
-      d.setDate(d.getDate() - i * 7);
-      weekStarts.push(d.toISOString().split("T")[0]);
+    const allDates = [...new Set(allSnap.docs.map((d) => d.data().collected_date as string))];
+    const recentDates = allDates.slice(0, 4);
+
+    if (recentDates.length === 0) {
+      return NextResponse.json({ latestDate: null, topSkills: [], byDate: {} });
     }
 
-    const snap = await adminDb
-      .collection("jd_skill_trends")
-      .where("week_start", "in", weekStarts)
-      .get();
+    const latestDate = recentDates[0];
 
     interface TrendDoc {
       id: string;
-      week_start: string;
+      collected_date: string;
       skill_name: string;
       mention_count: number;
     }
-    const trends = snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<TrendDoc, "id">) }));
+    const trends = allSnap.docs
+      .map((d) => ({ id: d.id, ...(d.data() as Omit<TrendDoc, "id">) }))
+      .filter((t) => recentDates.includes(t.collected_date));
 
-    // 현재 주 스킬 Top 15 (mention_count 기준)
-    const currentWeekTrends = trends
-      .filter((t) => t.week_start === currentWeekStart)
+    // 최신 수집일 Top 15
+    const topSkills = trends
+      .filter((t) => t.collected_date === latestDate)
       .sort((a, b) => b.mention_count - a.mention_count)
       .slice(0, 15);
 
-    // 주차별로 그룹
-    const byWeek: Record<string, Array<{ skill_name: string; mention_count: number }>> = {};
+    // 수집일별 그룹
+    const byDate: Record<string, Array<{ skill_name: string; mention_count: number }>> = {};
     for (const t of trends) {
-      if (!byWeek[t.week_start]) byWeek[t.week_start] = [];
-      byWeek[t.week_start].push({ skill_name: t.skill_name, mention_count: t.mention_count });
+      if (!byDate[t.collected_date]) byDate[t.collected_date] = [];
+      byDate[t.collected_date].push({ skill_name: t.skill_name, mention_count: t.mention_count });
     }
 
-    return NextResponse.json({
-      currentWeek: currentWeekStart,
-      topSkills: currentWeekTrends,
-      byWeek,
-    });
+    return NextResponse.json({ latestDate, topSkills, byDate });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
     return NextResponse.json({ error: message }, { status: 500 });

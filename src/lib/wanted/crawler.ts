@@ -45,33 +45,51 @@ interface WantedDetailJob {
   annual_to?: number;
 }
 
+export interface CrawlEvent {
+  type: "list" | "job" | "error";
+  total?: number;
+  current?: number;
+  job?: WantedJob;
+  message?: string;
+}
+
 /**
- * 원티드 프론트엔드 JD 목록을 가져온다.
- * tag_type_ids=669 = 프론트엔드 개발자
+ * 원티드 프론트엔드 JD를 스트리밍으로 가져온다.
+ * tag_type_ids=669 = 프론트엔드 개발자, years=5 = 경력 5년+
  */
-export async function fetchWantedJobs(limit = 20): Promise<WantedJob[]> {
-  const jobs: WantedJob[] = [];
-
+export async function* crawlWantedJobs(): AsyncGenerator<CrawlEvent> {
   try {
-    const listUrl =
-      `https://www.wanted.co.kr/api/v4/jobs` +
-      `?country=kr&job_sort=job.latest_order&years=-1&locations=all` +
-      `&tag_type_ids=669&limit=${limit}&offset=0`;
+    const PAGE_SIZE = 20;
+    const allItems: WantedListItem[] = [];
+    let offset = 0;
 
-    const listRes = await fetch(listUrl, {
-      headers: BASE_HEADERS,
-      signal: AbortSignal.timeout(15_000),
-    });
+    while (true) {
+      const listUrl =
+        `https://www.wanted.co.kr/api/v4/jobs` +
+        `?country=kr&job_sort=job.latest_order&years=5&locations=all` +
+        `&tag_type_ids=669&limit=${PAGE_SIZE}&offset=${offset}`;
 
-    if (!listRes.ok) {
-      console.warn(`Wanted list fetch failed: ${listRes.status}`);
-      return [];
+      const listRes = await fetch(listUrl, {
+        headers: BASE_HEADERS,
+        signal: AbortSignal.timeout(15_000),
+      });
+
+      if (!listRes.ok) break;
+
+      const listData = (await listRes.json()) as { data?: WantedListItem[] };
+      const items = listData?.data ?? [];
+      if (items.length === 0) break;
+
+      allItems.push(...items);
+      offset += PAGE_SIZE;
+      if (items.length < PAGE_SIZE) break;
+      await sleep(300);
     }
 
-    const listData = (await listRes.json()) as { data?: WantedListItem[] };
-    const items: WantedListItem[] = listData?.data ?? [];
+    yield { type: "list", total: allItems.length };
 
-    for (const item of items.slice(0, limit)) {
+    for (let i = 0; i < allItems.length; i++) {
+      const item = allItems[i];
       await sleep(500);
 
       try {
@@ -94,7 +112,6 @@ export async function fetchWantedJobs(limit = 20): Promise<WantedJob[]> {
           detail.preferred_points ?? "",
         ].join(" ");
 
-        // skill_tags에서 SKILL 종류만 추출
         const tagSkills = (job.skill_tags ?? [])
           .filter((t) => t.kind_title === "SKILL")
           .map((t) => t.title);
@@ -110,7 +127,7 @@ export async function fetchWantedJobs(limit = 20): Promise<WantedJob[]> {
             ? `${job.annual_from}~${job.annual_to}년`
             : "";
 
-        jobs.push({
+        const wantedJob: WantedJob = {
           wanted_id: String(job.id),
           company_name: job.company?.name ?? "",
           position_title: job.position ?? "",
@@ -119,14 +136,14 @@ export async function fetchWantedJobs(limit = 20): Promise<WantedJob[]> {
           experience_range: expRange,
           raw_description: fullText.slice(0, 2000),
           url: `https://www.wanted.co.kr/wd/${job.id}`,
-        });
+        };
+
+        yield { type: "job", current: i + 1, total: allItems.length, job: wantedJob };
       } catch (err) {
-        console.warn(`Wanted detail fetch error for ${item.id}:`, err);
+        yield { type: "error", message: `Detail fetch error for ${item.id}: ${err}` };
       }
     }
   } catch (err) {
-    console.warn("Wanted crawler error:", err);
+    yield { type: "error", message: `Crawler error: ${err}` };
   }
-
-  return jobs;
 }

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebase/admin";
-import { getCurrentWeekStartString, formatDateString } from "@/lib/utils/date";
+import { formatDateString } from "@/lib/utils/date";
 
 type MissionType = "concept" | "discussion" | "code";
 
@@ -10,48 +10,17 @@ type MissionType = "concept" | "discussion" | "code";
  */
 export async function GET() {
   try {
-    const weekStart = getCurrentWeekStartString();
-
-    // 1. 현재 주 가져오기 (없으면 생성)
-    let weekId: string;
-    let weekData: Record<string, unknown>;
-
-    const weeksSnap = await adminDb
-      .collection("weeks")
-      .where("week_start", "==", weekStart)
-      .limit(1)
-      .get();
-
-    if (weeksSnap.empty) {
-      const newWeek = {
-        week_start: weekStart,
-        goal_concept: 5,
-        goal_discussion: 5,
-        goal_code: 5,
-        carried_over_count: 0,
-        created_at: new Date().toISOString(),
-      };
-      const docRef = await adminDb.collection("weeks").add(newWeek);
-      weekId = docRef.id;
-      weekData = newWeek;
-    } else {
-      const doc = weeksSnap.docs[0];
-      weekId = doc.id;
-      weekData = doc.data();
-    }
-
-    // 2. 현재 주 미션 가져오기
-    const missionsSnap = await adminDb.collection("missions").where("week_id", "==", weekId).get();
+    // 1. 전체 미션 가져오기
+    const missionsSnap = await adminDb.collection("missions").get();
 
     const missions = missionsSnap.docs.map((d) => ({ id: d.id, ...d.data() })) as Array<{
       id: string;
       mission_type: MissionType;
       status: string;
       category_name: string;
-      is_carried_over: boolean;
     }>;
 
-    // 3. 타입별 진행률
+    // 2. 타입별 통과 수
     const progress = {
       concept: { passed: 0, total: 0 },
       discussion: { passed: 0, total: 0 },
@@ -66,23 +35,19 @@ export async function GET() {
       }
     }
 
-    // 4. 스트릭 계산 (passed 상태 미션의 completed_at 기준)
-    const allPassedMissions = await adminDb
-      .collection("missions")
-      .where("status", "==", "passed")
-      .get();
-
+    // 3. 스트릭 계산
     const passedDates = new Set<string>();
-    for (const doc of allPassedMissions.docs) {
-      const completedAt = doc.data().completed_at as string | null;
-      if (completedAt) {
-        passedDates.add(completedAt.split("T")[0]);
+    for (const m of missions) {
+      if (m.status === "passed") {
+        const completedAt = (m as Record<string, unknown>).completed_at as string | null;
+        if (completedAt) {
+          passedDates.add(completedAt.split("T")[0]);
+        }
       }
     }
-
     const streak = calcStreak(passedDates);
 
-    // 5. 카테고리별 통계 (learning_skills 컬렉션)
+    // 4. 카테고리별 통계
     const skillsSnap = await adminDb
       .collection("learning_skills")
       .orderBy("passed_missions", "desc")
@@ -96,20 +61,22 @@ export async function GET() {
       confidence_level: (d.data().confidence_level as number) ?? 0,
     }));
 
-    // 6. 약한 영역 (confidence_level 낮은 순, 최소 1번 이상 시도한 것만)
+    // 5. 약한 영역
     const weakAreas = [...categoryStats]
       .filter((s) => s.total_missions > 0)
       .sort((a, b) => a.confidence_level - b.confidence_level)
       .slice(0, 3);
 
+    const totalMissions = missions.length;
+    const completedMissions = missions.filter((m) => m.status === "passed").length;
+
     return NextResponse.json({
-      week: { id: weekId, ...weekData },
       progress,
       streak,
       categoryStats,
       weakAreas,
-      totalMissions: missions.length,
-      completedMissions: missions.filter((m) => m.status === "passed").length,
+      totalMissions,
+      completedMissions,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
@@ -118,17 +85,12 @@ export async function GET() {
   }
 }
 
-/**
- * passedDates: 미션 통과 날짜 Set (YYYY-MM-DD)
- * 오늘부터 역순으로 연속 날짜를 세어 스트릭 반환
- */
 function calcStreak(passedDates: Set<string>): number {
   if (passedDates.size === 0) return 0;
 
   let streak = 0;
   const today = new Date();
 
-  // 오늘 활동이 없으면 어제부터 체크
   const todayStr = formatDateString(today);
   let checkDate = passedDates.has(todayStr)
     ? today

@@ -14,7 +14,6 @@ interface TopicData {
   description: string | null;
   mission_type: "concept" | "discussion" | "code";
   category_name: string;
-  difficulty: string;
   source_type: string;
   is_used: boolean;
   created_at: string;
@@ -25,7 +24,6 @@ interface NewTopicForm {
   description: string;
   mission_type: "concept" | "discussion" | "code";
   category_name: string;
-  difficulty: string;
   code_snippet: string;
 }
 
@@ -36,10 +34,9 @@ const typeIcons = {
 };
 
 const sourceLabels: Record<string, string> = {
-  manual: "직접 입력",
-  rss: "RSS",
-  gap: "갭 분석",
-  github: "GitHub",
+  ai: "AI 생성",
+  jd: "JD 갭 분석",
+  article: "아티클",
 };
 
 const emptyForm: NewTopicForm = {
@@ -47,7 +44,6 @@ const emptyForm: NewTopicForm = {
   description: "",
   mission_type: "concept",
   category_name: "",
-  difficulty: "intermediate",
   code_snippet: "",
 };
 
@@ -144,7 +140,7 @@ export function TopicsClient() {
                 className="border-input bg-background w-full rounded-md border px-3 py-2 text-sm"
                 rows={2}
               />
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-2 gap-2">
                 <select
                   value={form.mission_type}
                   onChange={(e) =>
@@ -166,15 +162,6 @@ export function TopicsClient() {
                   onChange={(e) => setForm((f) => ({ ...f, category_name: e.target.value }))}
                   className="border-input bg-background rounded-md border px-2 py-2 text-sm"
                 />
-                <select
-                  value={form.difficulty}
-                  onChange={(e) => setForm((f) => ({ ...f, difficulty: e.target.value }))}
-                  className="border-input bg-background rounded-md border px-2 py-2 text-sm"
-                >
-                  <option value="beginner">입문</option>
-                  <option value="intermediate">중급</option>
-                  <option value="advanced">고급</option>
-                </select>
               </div>
               <textarea
                 placeholder="코드 스니펫 (코드 타입일 경우)"

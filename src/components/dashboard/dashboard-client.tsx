@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import { Flame, Target, TrendingUp, AlertTriangle } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ProgressRing } from "./progress-ring";
 import { RadarChart } from "./radar-chart";
@@ -11,11 +10,6 @@ import { RadarChart } from "./radar-chart";
 type MissionType = "concept" | "discussion" | "code";
 
 interface DashboardData {
-  week: {
-    id: string;
-    week_start: string;
-    carried_over_count: number;
-  };
   progress: Record<MissionType, { passed: number; total: number }>;
   streak: number;
   categoryStats: Array<{
@@ -38,15 +32,6 @@ const typeConfig: Record<MissionType, { label: string; color: string }> = {
   code: { label: "코드", color: "#22c55e" },
 };
 
-function formatWeekRange(weekStart: string): string {
-  const start = new Date(weekStart);
-  const end = new Date(weekStart);
-  end.setDate(end.getDate() + 6);
-
-  const fmt = (d: Date) => `${d.getMonth() + 1}/${d.getDate()}`;
-  return `${fmt(start)} ~ ${fmt(end)}`;
-}
-
 export function DashboardClient() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -63,11 +48,6 @@ export function DashboardClient() {
     return (
       <div className="space-y-4">
         <Skeleton className="h-32 w-full" />
-        <div className="grid grid-cols-3 gap-3">
-          <Skeleton className="h-28" />
-          <Skeleton className="h-28" />
-          <Skeleton className="h-28" />
-        </div>
         <Skeleton className="h-64 w-full" />
       </div>
     );
@@ -77,26 +57,9 @@ export function DashboardClient() {
     return <p className="text-muted-foreground text-sm">데이터를 불러올 수 없습니다.</p>;
   }
 
-  const overallRate =
-    data.totalMissions > 0 ? Math.round((data.completedMissions / data.totalMissions) * 100) : 0;
-
   return (
     <div className="space-y-4">
-      {/* 주간 헤더 */}
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-muted-foreground text-sm">이번 주</p>
-          <p className="text-lg font-bold">{formatWeekRange(data.week.week_start)}</p>
-        </div>
-        <div className="flex items-center gap-2">
-          {data.week.carried_over_count > 0 && (
-            <Badge variant="secondary">이월 {data.week.carried_over_count}개</Badge>
-          )}
-          <Badge variant="outline">{overallRate}% 완료</Badge>
-        </div>
-      </div>
-
-      {/* 진행률 링 + 스트릭 */}
+      {/* 학습 현황 + 스트릭 */}
       <Card>
         <CardContent className="p-4">
           <div className="flex items-center justify-around">
@@ -109,7 +72,6 @@ export function DashboardClient() {
                 color={typeConfig[type].color}
               />
             ))}
-            {/* 스트릭 */}
             <div className="flex flex-col items-center gap-2">
               <div className="flex h-20 w-20 flex-col items-center justify-center rounded-full border-4 border-orange-400">
                 <Flame className="h-6 w-6 text-orange-400" />
@@ -135,7 +97,7 @@ export function DashboardClient() {
         </CardContent>
       </Card>
 
-      {/* 약한 영역 추천 */}
+      {/* 약한 영역 */}
       {data.weakAreas.length > 0 && (
         <Card className="border-yellow-500/20 bg-yellow-500/5">
           <CardHeader className="pb-2">
@@ -165,7 +127,6 @@ export function DashboardClient() {
         </Card>
       )}
 
-      {/* 카테고리 통계가 없을 때 안내 */}
       {data.categoryStats.length === 0 && (
         <Card>
           <CardContent className="py-8 text-center">

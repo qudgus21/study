@@ -14,7 +14,6 @@ export interface MissionCardData {
   categoryName?: string;
   attemptCount?: number;
   lastScore?: number | null;
-  isCarriedOver?: boolean;
 }
 
 const typeConfig = {
@@ -58,11 +57,6 @@ export function MissionCard({ mission }: { mission: MissionCardData }) {
               </Badge>
               {mission.categoryName && (
                 <span className="text-muted-foreground text-xs">{mission.categoryName}</span>
-              )}
-              {mission.isCarriedOver && (
-                <Badge variant="outline" className="text-xs text-orange-600">
-                  이월
-                </Badge>
               )}
             </div>
             <p className="mt-1 truncate text-sm font-medium">{mission.title}</p>

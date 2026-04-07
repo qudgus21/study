@@ -1,27 +1,41 @@
 import { NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebase/admin";
-import { getCurrentWeekStartString } from "@/lib/utils/date";
 
 export interface GapItem {
   skill_name: string;
   market_count: number;
   confidence_level: number;
-  /** green = 강점, yellow = 보통, red = 갭 */
   status: "green" | "yellow" | "red";
 }
 
 /**
  * GET /api/jd/gap
  * 시장 요구 스킬(jd_skill_trends) vs 내 역량(learning_skills) 갭 분석
+ * 가장 최근 수집일 기준
  */
 export async function GET() {
   try {
-    const weekStart = getCurrentWeekStartString();
+    // 가장 최근 수집일 찾기
+    const latestSnap = await adminDb
+      .collection("jd_skill_trends")
+      .orderBy("collected_date", "desc")
+      .limit(1)
+      .get();
 
-    // 이번 주 JD 스킬 트렌드 (Top 20)
+    if (latestSnap.empty) {
+      return NextResponse.json({
+        gaps: [],
+        summary: { green: 0, yellow: 0, red: 0 },
+        collectedDate: null,
+      });
+    }
+
+    const latestDate = latestSnap.docs[0].data().collected_date as string;
+
+    // 해당 날짜의 스킬 트렌드 (Top 20)
     const trendsSnap = await adminDb
       .collection("jd_skill_trends")
-      .where("week_start", "==", weekStart)
+      .where("collected_date", "==", latestDate)
       .get();
 
     const marketSkills = trendsSnap.docs
@@ -62,7 +76,7 @@ export async function GET() {
       red: gaps.filter((g) => g.status === "red").length,
     };
 
-    return NextResponse.json({ gaps, summary, weekStart });
+    return NextResponse.json({ gaps, summary, collectedDate: latestDate });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
     return NextResponse.json({ error: message }, { status: 500 });

@@ -36,32 +36,8 @@
       "collectionGroup": "jd_skill_trends",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "week_start", "order": "ASCENDING" },
+        { "fieldPath": "collected_date", "order": "ASCENDING" },
         { "fieldPath": "skill_name", "order": "ASCENDING" }
-      ]
-    },
-    {
-      "collectionGroup": "github_releases",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "repo", "order": "ASCENDING" },
-        { "fieldPath": "tag_name", "order": "ASCENDING" }
-      ]
-    },
-    {
-      "collectionGroup": "github_releases",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "repo", "order": "ASCENDING" },
-        { "fieldPath": "published_at", "order": "DESCENDING" }
-      ]
-    },
-    {
-      "collectionGroup": "missions",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "week_id", "order": "ASCENDING" },
-        { "fieldPath": "status", "order": "ASCENDING" }
       ]
     },
     {
@@ -86,14 +62,6 @@
       "fields": [
         { "fieldPath": "is_bookmarked", "order": "ASCENDING" },
         { "fieldPath": "published_at", "order": "DESCENDING" }
-      ]
-    },
-    {
-      "collectionGroup": "notifications",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "is_read", "order": "ASCENDING" },
-        { "fieldPath": "created_at", "order": "DESCENDING" }
       ]
     }
   ]

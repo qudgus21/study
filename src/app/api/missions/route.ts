@@ -3,13 +3,12 @@ import { adminDb } from "@/lib/firebase/admin";
 
 export async function GET() {
   try {
-    const missionsSnap = await adminDb.collection("missions").orderBy("sort_order", "asc").get();
+    const missionsSnap = await adminDb.collection("missions").orderBy("created_at", "desc").get();
 
     const missions = await Promise.all(
       missionsSnap.docs.map(async (doc) => {
         const mission = { id: doc.id, ...doc.data() };
 
-        // attempts 가져오기
         const attemptsSnap = await adminDb
           .collection("attempts")
           .where("mission_id", "==", doc.id)
@@ -37,24 +36,18 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { week_id, topic_id, mission_type, sort_order = 0, topic_title, category_name } = body;
+    const { topic_id, mission_type, topic_title, category_name } = body;
 
-    if (!week_id || !topic_id || !mission_type) {
-      return NextResponse.json(
-        { error: "week_id, topic_id, mission_type are required" },
-        { status: 400 },
-      );
+    if (!topic_id || !mission_type) {
+      return NextResponse.json({ error: "topic_id, mission_type are required" }, { status: 400 });
     }
 
     const docRef = await adminDb.collection("missions").add({
-      week_id,
       topic_id,
       mission_type,
-      sort_order,
       topic_title: topic_title ?? "",
       category_name: category_name ?? "",
       status: "pending",
-      is_carried_over: false,
       created_at: new Date().toISOString(),
       completed_at: null,
     });

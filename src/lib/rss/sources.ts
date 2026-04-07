@@ -2,7 +2,6 @@ export interface RssSource {
   id: string;
   name: string;
   url: string;
-  language: "ko" | "en";
 }
 
 export const RSS_SOURCES: RssSource[] = [
@@ -10,36 +9,30 @@ export const RSS_SOURCES: RssSource[] = [
     id: "geeknews",
     name: "긱뉴스",
     url: "https://news.hada.io/rss/news",
-    language: "ko",
   },
   {
     id: "kofearticle",
     name: "Korean FE Article",
     url: "https://kofearticle.substack.com/feed",
-    language: "ko",
   },
   {
-    id: "js-weekly",
-    name: "JavaScript Weekly",
-    url: "https://cprss.s3.amazonaws.com/javascriptweekly.com.xml",
-    language: "en",
+    id: "kakao-tech",
+    name: "카카오 기술블로그",
+    url: "https://tech.kakao.com/blog/feed",
   },
   {
-    id: "css-weekly",
-    name: "CSS Weekly",
-    url: "https://css-weekly.com/feed.xml",
-    language: "en",
+    id: "toss-tech",
+    name: "토스 기술블로그",
+    url: "https://toss.tech/rss.xml",
   },
   {
-    id: "smashing",
-    name: "Smashing Magazine",
-    url: "https://www.smashingmagazine.com/feed",
-    language: "en",
+    id: "woowahan-tech",
+    name: "우아한형제들 기술블로그",
+    url: "https://techblog.woowahan.com/feed/",
   },
   {
-    id: "devto-frontend",
-    name: "dev.to Frontend",
-    url: "https://dev.to/feed/tag/frontend",
-    language: "en",
+    id: "yozm-it",
+    name: "요즘IT",
+    url: "https://yozm.wishket.com/magazine/feed/",
   },
 ];

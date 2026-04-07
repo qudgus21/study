@@ -14,7 +14,6 @@ export async function PATCH(request: NextRequest, { params }: Params) {
       "description",
       "mission_type",
       "category_name",
-      "difficulty",
       "code_snippet",
       "is_used",
     ];
