@@ -300,7 +300,7 @@ export function SettingsClient() {
                       onClick={() =>
                         setTopicCounts((c) => ({ ...c, [gen.key]: Math.max(1, c[gen.key] - 1) }))
                       }
-                      className="border-input hover:bg-accent flex h-6 w-6 items-center justify-center rounded border text-xs transition-colors"
+                      className="border-input hover:bg-accent flex h-6 w-6 cursor-pointer items-center justify-center rounded border text-xs transition-colors"
                     >
                       -
                     </button>
@@ -311,7 +311,7 @@ export function SettingsClient() {
                       onClick={() =>
                         setTopicCounts((c) => ({ ...c, [gen.key]: Math.min(20, c[gen.key] + 1) }))
                       }
-                      className="border-input hover:bg-accent flex h-6 w-6 items-center justify-center rounded border text-xs transition-colors"
+                      className="border-input hover:bg-accent flex h-6 w-6 cursor-pointer items-center justify-center rounded border text-xs transition-colors"
                     >
                       +
                     </button>
@@ -368,7 +368,7 @@ export function SettingsClient() {
                   {collector.key === "rss" ? (
                     <button
                       onClick={() => setShowKeywords((v) => !v)}
-                      className="text-muted-foreground hover:text-foreground flex items-center gap-1 text-xs transition-colors"
+                      className="text-muted-foreground hover:text-foreground flex cursor-pointer items-center gap-1 text-xs transition-colors"
                     >
                       <Tag className="h-3 w-3" />
                       필터 키워드 ({settings.article_keywords.length})
@@ -419,7 +419,7 @@ export function SettingsClient() {
                           {kw}
                           <button
                             onClick={() => removeKeyword(kw)}
-                            className="text-muted-foreground hover:text-foreground transition-colors"
+                            className="text-muted-foreground hover:text-foreground cursor-pointer transition-colors"
                           >
                             <X className="h-3 w-3" />
                           </button>
@@ -476,7 +476,7 @@ export function SettingsClient() {
                 onClick={() =>
                   setSettings((s) => (s ? { ...s, pass_score: Math.max(50, s.pass_score - 5) } : s))
                 }
-                className="border-input hover:bg-accent flex h-7 w-7 items-center justify-center rounded-md border text-sm transition-colors"
+                className="border-input hover:bg-accent flex h-7 w-7 cursor-pointer items-center justify-center rounded-md border text-sm transition-colors"
               >
                 -
               </button>
@@ -489,7 +489,7 @@ export function SettingsClient() {
                     s ? { ...s, pass_score: Math.min(100, s.pass_score + 5) } : s,
                   )
                 }
-                className="border-input hover:bg-accent flex h-7 w-7 items-center justify-center rounded-md border text-sm transition-colors"
+                className="border-input hover:bg-accent flex h-7 w-7 cursor-pointer items-center justify-center rounded-md border text-sm transition-colors"
               >
                 +
               </button>
