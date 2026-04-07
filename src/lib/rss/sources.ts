@@ -9,7 +9,7 @@ export const RSS_SOURCES: RssSource[] = [
   {
     id: "geeknews",
     name: "긱뉴스",
-    url: "https://news.hada.io/rss",
+    url: "https://news.hada.io/rss/news",
     language: "ko",
   },
   {
@@ -21,7 +21,7 @@ export const RSS_SOURCES: RssSource[] = [
   {
     id: "js-weekly",
     name: "JavaScript Weekly",
-    url: "https://javascriptweekly.com/rss/",
+    url: "https://cprss.s3.amazonaws.com/javascriptweekly.com.xml",
     language: "en",
   },
   {

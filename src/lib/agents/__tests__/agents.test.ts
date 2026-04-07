@@ -58,7 +58,7 @@ describe("Agent System", () => {
 
       expect(prompt.fullClipboardText).toContain("모노레포");
       expect(prompt.systemPrompt).toContain("Tech Lead");
-      expect(prompt.systemPrompt).toContain("counterarguments");
+      expect(prompt.systemPrompt).toContain("반론");
     });
 
     it("strict-code-reviewer 프롬프트에 코드 스니펫이 포함된다", () => {

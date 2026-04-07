@@ -24,41 +24,39 @@ function sleep(ms: number) {
 
 interface WantedListItem {
   id: number;
-  position: {
-    title: string;
-    name: string;
-    experience_level?: { name?: string };
-  };
+  position: string;
   company: { name: string };
+  annual_from?: number;
+  annual_to?: number;
 }
 
-interface WantedDetailData {
+interface WantedDetailJob {
   id: number;
-  position: {
-    title: string;
-    name?: string;
-    experience_level?: { name?: string };
-    required_experience_years?: string;
-    tasks?: string;
+  position: string;
+  detail: {
+    main_tasks?: string;
     requirements?: string;
     preferred_points?: string;
+    intro?: string;
   };
   company: { name: string };
-  skill_tags?: Array<{ title: string; category?: string }>;
+  skill_tags?: Array<{ title: string; kind_title?: string }>;
+  annual_from?: number;
+  annual_to?: number;
 }
 
 /**
  * 원티드 프론트엔드 JD 목록을 가져온다.
- * tag_type_ids=518 = 프론트엔드 개발자
+ * tag_type_ids=669 = 프론트엔드 개발자
  */
 export async function fetchWantedJobs(limit = 20): Promise<WantedJob[]> {
   const jobs: WantedJob[] = [];
 
   try {
     const listUrl =
-      `https://www.wanted.co.kr/api/chaos/jobs/v1/fetch-jobs-by-filter` +
+      `https://www.wanted.co.kr/api/v4/jobs` +
       `?country=kr&job_sort=job.latest_order&years=-1&locations=all` +
-      `&tag_type_ids=518&limit=${limit}&offset=0`;
+      `&tag_type_ids=669&limit=${limit}&offset=0`;
 
     const listRes = await fetch(listUrl, {
       headers: BASE_HEADERS,
@@ -70,15 +68,14 @@ export async function fetchWantedJobs(limit = 20): Promise<WantedJob[]> {
       return [];
     }
 
-    const listData = (await listRes.json()) as { data?: { jobs?: WantedListItem[] } };
-    const items: WantedListItem[] = listData?.data?.jobs ?? [];
+    const listData = (await listRes.json()) as { data?: WantedListItem[] };
+    const items: WantedListItem[] = listData?.data ?? [];
 
     for (const item of items.slice(0, limit)) {
-      // IP 밴 방지: 요청 사이 500ms 대기
       await sleep(500);
 
       try {
-        const detailUrl = `https://www.wanted.co.kr/api/chaos/jobs/v1/${item.id}`;
+        const detailUrl = `https://www.wanted.co.kr/api/v4/jobs/${item.id}`;
         const detailRes = await fetch(detailUrl, {
           headers: BASE_HEADERS,
           signal: AbortSignal.timeout(10_000),
@@ -86,32 +83,40 @@ export async function fetchWantedJobs(limit = 20): Promise<WantedJob[]> {
 
         if (!detailRes.ok) continue;
 
-        const detail = (await detailRes.json()) as { job?: WantedDetailData };
-        const job = detail?.job;
+        const detailData = (await detailRes.json()) as { job?: WantedDetailJob };
+        const job = detailData?.job;
         if (!job) continue;
 
-        const pos = job.position;
-        const fullText = [pos.tasks ?? "", pos.requirements ?? "", pos.preferred_points ?? ""].join(
-          " ",
-        );
+        const detail = job.detail ?? {};
+        const fullText = [
+          detail.main_tasks ?? "",
+          detail.requirements ?? "",
+          detail.preferred_points ?? "",
+        ].join(" ");
 
-        // skill_tags에서 우선 추출, 없으면 텍스트 추출
-        const tagSkills = (job.skill_tags ?? []).map((t) => t.title);
+        // skill_tags에서 SKILL 종류만 추출
+        const tagSkills = (job.skill_tags ?? [])
+          .filter((t) => t.kind_title === "SKILL")
+          .map((t) => t.title);
         const textSkills = extractSkills(fullText);
         const allSkills = [...new Set([...tagSkills, ...textSkills])];
 
-        // required/preferred 분리 (태그 없으면 모두 required로)
         const requiredSkills = tagSkills.length > 0 ? tagSkills : allSkills;
         const preferredSkills =
           tagSkills.length > 0 ? textSkills.filter((s) => !tagSkills.includes(s)) : [];
 
+        const expRange =
+          job.annual_from != null && job.annual_to != null
+            ? `${job.annual_from}~${job.annual_to}년`
+            : "";
+
         jobs.push({
           wanted_id: String(job.id),
           company_name: job.company?.name ?? "",
-          position_title: pos.title ?? pos.name ?? "",
+          position_title: job.position ?? "",
           required_skills: requiredSkills,
           preferred_skills: preferredSkills,
-          experience_range: pos.experience_level?.name ?? pos.required_experience_years ?? "",
+          experience_range: expRange,
           raw_description: fullText.slice(0, 2000),
           url: `https://www.wanted.co.kr/wd/${job.id}`,
         });
