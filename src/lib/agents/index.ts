@@ -27,5 +27,11 @@ export function getAgent(type: AgentType): Agent {
   return agents[type];
 }
 
+export const cliAgentMap: Record<MissionType, string> = {
+  concept: "senior-interviewer",
+  discussion: "tech-lead-debater",
+  code: "strict-code-reviewer",
+};
+
 export { agents };
 export type { Agent, AgentType, MissionType, AgentPromptInput, AgentPrompt } from "./types";

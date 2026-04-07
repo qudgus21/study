@@ -8,7 +8,7 @@ export async function POST(request: NextRequest) {
     const { mission_id, answer_text, eval_prompt, eval_result, score, passed, feedback_summary } =
       body;
 
-    if (!mission_id || !answer_text || !eval_prompt) {
+    if (!mission_id || !answer_text) {
       return NextResponse.json(
         { error: "mission_id, answer_text, eval_prompt are required" },
         { status: 400 },
