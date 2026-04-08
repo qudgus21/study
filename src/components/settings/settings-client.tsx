@@ -1,13 +1,13 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import {
   RefreshCw,
   Play,
   Sparkles,
   Newspaper,
-  Rss,
   Briefcase,
+  Rss,
   SlidersHorizontal,
   Tag,
   X,
@@ -17,11 +17,9 @@ import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-
-interface Settings {
-  pass_score: number;
-  article_keywords: string[];
-}
+import { useSettings, useSaveSettings, type Settings } from "@/lib/queries/use-settings";
+import { useQueryClient } from "@tanstack/react-query";
+import { queryKeys } from "@/lib/queries/keys";
 
 const CATEGORY_GENERATORS = [
   {
@@ -32,9 +30,16 @@ const CATEGORY_GENERATORS = [
     url: "/api/categories/generate/ai",
   },
   {
+    key: "jd",
+    label: "JD 기반",
+    description: "채용공고 인사이트 + 스킬 트렌드에서 학습 카테고리 생성",
+    icon: Briefcase,
+    url: "/api/categories/generate/jd",
+  },
+  {
     key: "article",
     label: "아티클 기반",
-    description: "수집된 아티클에서 학습 카테고리 추출",
+    description: "기술 블로그 아티클에서 AI로 학습 카테고리 추출",
     icon: Newspaper,
     url: "/api/categories/generate/article",
   },
@@ -89,9 +94,12 @@ function formatLastRun(iso: string | undefined): string | null {
 }
 
 export function SettingsClient() {
-  const [settings, setSettings] = useState<Settings | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+  const { data: serverSettings, isLoading } = useSettings();
+  const saveSettings = useSaveSettings();
+  const queryClient = useQueryClient();
+
+  // 로컬 편집 상태 (서버 데이터 기반)
+  const [localSettings, setLocalSettings] = useState<Settings | null>(null);
   const [categoryCounts, setTopicCounts] = useState({ ai: 5, jd: 5, article: 5 });
   const [generatingType, setGeneratingType] = useState<string | null>(null);
   const [collectingKey, setCollectingKey] = useState<string | null>(null);
@@ -109,12 +117,14 @@ export function SettingsClient() {
   const composingRef = useRef(false);
   const modalLogsRef = useRef<HTMLDivElement>(null);
 
+  // 서버 데이터가 오면 로컬 상태 초기화
   useEffect(() => {
-    fetch("/api/settings")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => d && setSettings(d))
-      .catch(console.error)
-      .finally(() => setLoading(false));
+    if (serverSettings && !localSettings) {
+      setLocalSettings(serverSettings);
+    }
+  }, [serverSettings, localSettings]);
+
+  useEffect(() => {
     setLastRunMap(getLastRunMap());
   }, []);
 
@@ -124,20 +134,15 @@ export function SettingsClient() {
     }
   }, [collectModal.logs]);
 
+  const settings = localSettings;
+
   async function handleSave() {
     if (!settings) return;
-    setSaving(true);
     try {
-      await fetch("/api/settings", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(settings),
-      });
+      await saveSettings.mutateAsync(settings);
       toast.success("설정이 저장됐습니다.");
     } catch {
       toast.error("저장에 실패했습니다.");
-    } finally {
-      setSaving(false);
     }
   }
 
@@ -186,6 +191,9 @@ export function SettingsClient() {
 
       saveLastRun(`category_${gen.key}`);
       setLastRunMap(getLastRunMap());
+      // 카테고리 생성 후 캐시 무효화
+      queryClient.invalidateQueries({ queryKey: queryKeys.categories.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.dashboard });
     } catch {
       setCollectModal((prev) => ({
         ...prev,
@@ -247,6 +255,13 @@ export function SettingsClient() {
 
       saveLastRun(`collect_${collector.key}`);
       setLastRunMap(getLastRunMap());
+      // 수집 완료 후 관련 캐시 무효화
+      if (collector.key === "rss") {
+        queryClient.invalidateQueries({ queryKey: queryKeys.articles });
+      } else {
+        queryClient.invalidateQueries({ queryKey: queryKeys.jd.trends });
+        queryClient.invalidateQueries({ queryKey: queryKeys.jd.insights });
+      }
     } catch {
       setCollectModal((prev) => ({ ...prev, logs: [...prev.logs, "수집 실패"], done: true }));
     } finally {
@@ -286,20 +301,20 @@ export function SettingsClient() {
       toast.error("이미 존재하는 키워드입니다.");
       return;
     }
-    setSettings({ ...settings, article_keywords: [...settings.article_keywords, kw] });
+    setLocalSettings({ ...settings, article_keywords: [...settings.article_keywords, kw] });
     setNewKeyword("");
     keywordInputRef.current?.focus();
   }
 
   function removeKeyword(kw: string) {
     if (!settings) return;
-    setSettings({
+    setLocalSettings({
       ...settings,
       article_keywords: settings.article_keywords.filter((k) => k !== kw),
     });
   }
 
-  if (loading) return <Skeleton className="h-64 w-full" />;
+  if (isLoading) return <Skeleton className="h-64 w-full" />;
   if (!settings) return null;
 
   return (
@@ -509,7 +524,9 @@ export function SettingsClient() {
             <div className="flex items-center gap-2">
               <button
                 onClick={() =>
-                  setSettings((s) => (s ? { ...s, pass_score: Math.max(50, s.pass_score - 5) } : s))
+                  setLocalSettings((s) =>
+                    s ? { ...s, pass_score: Math.max(50, s.pass_score - 5) } : s,
+                  )
                 }
                 className="border-input hover:bg-accent flex h-7 w-7 cursor-pointer items-center justify-center rounded-md border text-sm transition-colors"
               >
@@ -520,7 +537,7 @@ export function SettingsClient() {
               </span>
               <button
                 onClick={() =>
-                  setSettings((s) =>
+                  setLocalSettings((s) =>
                     s ? { ...s, pass_score: Math.min(100, s.pass_score + 5) } : s,
                   )
                 }
@@ -530,8 +547,13 @@ export function SettingsClient() {
               </button>
             </div>
           </div>
-          <Button onClick={handleSave} disabled={saving} variant="outline" className="w-full">
-            {saving ? "저장 중..." : "설정 저장"}
+          <Button
+            onClick={handleSave}
+            disabled={saveSettings.isPending}
+            variant="outline"
+            className="w-full"
+          >
+            {saveSettings.isPending ? "저장 중..." : "설정 저장"}
           </Button>
         </CardContent>
       </Card>

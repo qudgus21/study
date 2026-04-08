@@ -1,12 +1,12 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import { ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "lucide-react";
-import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { ArticleCard, type ArticleData } from "./article-card";
+import { ArticleCard } from "./article-card";
 import { RSS_SOURCES } from "@/lib/rss/sources";
+import { useArticles } from "@/lib/queries/use-articles";
 
 type FilterTab = "all" | "unread" | "bookmarked";
 
@@ -24,32 +24,12 @@ const NEWS_SOURCES = ["긱뉴스", "요즘IT"];
 type SourceGroup = "" | "tech" | "news" | string;
 
 export function ArticlesClient() {
-  const [allArticles, setAllArticles] = useState<ArticleData[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data: allArticles = [], isLoading } = useArticles();
   const [tab, setTab] = useState<FilterTab>("all");
   const [sourceFilter, setSourceFilter] = useState<SourceGroup>("");
   const [page, setPage] = useState(1);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const res = await fetch("/api/articles");
-      if (!res.ok) throw new Error("Failed to fetch");
-      const data = (await res.json()) as { items: ArticleData[] };
-      setAllArticles(data.items);
-    } catch {
-      toast.error("아티클을 불러오지 못했습니다.");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    load();
-    setPage(1);
-  }, [load]);
 
   // 드롭다운 외부 클릭 닫기
   useEffect(() => {
@@ -61,10 +41,6 @@ export function ArticlesClient() {
     document.addEventListener("mousedown", handleClick);
     return () => document.removeEventListener("mousedown", handleClick);
   }, []);
-
-  function handleUpdate(id: string, changes: Partial<ArticleData>) {
-    setAllArticles((prev) => prev.map((a) => (a.id === id ? { ...a, ...changes } : a)));
-  }
 
   // 소스 필터 적용
   const sourceFiltered = allArticles.filter((a) => {
@@ -182,7 +158,7 @@ export function ArticlesClient() {
         </TabsList>
 
         <TabsContent value={tab} className="mt-4">
-          {loading ? (
+          {isLoading ? (
             <div className="space-y-3">
               {Array.from({ length: 5 }).map((_, i) => (
                 <Skeleton key={i} className="h-24 w-full rounded-lg" />
@@ -195,7 +171,7 @@ export function ArticlesClient() {
           ) : (
             <div className="space-y-3">
               {paged.map((article) => (
-                <ArticleCard key={article.id} article={article} onUpdate={handleUpdate} />
+                <ArticleCard key={article.id} article={article} />
               ))}
 
               {/* 페이지네이션 */}

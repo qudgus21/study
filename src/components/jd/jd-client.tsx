@@ -1,29 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SkillBarChart } from "./skill-bar-chart";
 import { JdInsights } from "./jd-insights";
-
-interface TrendData {
-  latestDate: string | null;
-  topSkills: Array<{ skill_name: string; mention_count: number }>;
-  byDate: Record<string, Array<{ skill_name: string; mention_count: number }>>;
-}
+import { useJdTrends } from "@/lib/queries/use-jd";
 
 export function JdClient() {
-  const [trends, setTrends] = useState<TrendData | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    fetch("/api/jd/trends")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => d && setTrends(d))
-      .catch(console.error)
-      .finally(() => setLoading(false));
-  }, []);
+  const { data: trends, isLoading } = useJdTrends();
 
   return (
     <div className="space-y-4">
@@ -36,7 +21,7 @@ export function JdClient() {
         </TabsList>
 
         <TabsContent value="trends" className="mt-4 space-y-4">
-          {loading ? (
+          {isLoading ? (
             <Skeleton className="h-64 w-full" />
           ) : (
             <>

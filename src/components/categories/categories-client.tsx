@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   Plus,
   Trash2,
@@ -21,27 +21,36 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-
-interface CategoryData {
-  id: string;
-  name: string;
-  description: string | null;
-  source_type: string;
-  created_at: string;
-}
-
-interface MissionData {
-  id: string;
-  title: string;
-  mission_type: "concept" | "discussion" | "code";
-  status: string;
-  attempt_count: number;
-  last_score: number | null;
-}
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  useCategories,
+  useCategoryMissions,
+  useCreateCategory,
+  useDeleteCategory,
+  useDeleteMission,
+  useGenerateMissions,
+  type CategoryData,
+} from "@/lib/queries/use-categories";
 
 interface NewCategoryForm {
   name: string;
   description: string;
+}
+
+interface DeleteInfo {
+  categoryId: string;
+  categoryName: string;
+  missionCount: number;
+  attemptCount: number;
+  passedCount: number;
+  inProgressCount: number;
 }
 
 const sourceConfig: Record<string, { label: string; style: string }> = {
@@ -49,7 +58,7 @@ const sourceConfig: Record<string, { label: string; style: string }> = {
     label: "AI 생성",
     style: "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400",
   },
-  jd: { label: "JD 갭", style: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400" },
+  jd: { label: "JD", style: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400" },
   article: {
     label: "아티클",
     style: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
@@ -86,36 +95,30 @@ const PAGE_GROUP_SIZE = 5;
 type SourceFilter = "" | "ai" | "jd" | "article" | "manual";
 
 export function CategoriesClient() {
-  const [categories, setCategories] = useState<CategoryData[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data: categories = [], isLoading } = useCategories();
+  const createCategory = useCreateCategory();
+  const deleteCategory = useDeleteCategory();
+  const deleteMission = useDeleteMission();
+  const generateMissions = useGenerateMissions();
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState<NewCategoryForm>(emptyForm);
-  const [saving, setSaving] = useState(false);
 
   // 확장된 카테고리 ID
   const [expandedId, setExpandedId] = useState<string | null>(null);
-
-  // 카테고리별 미션 캐시
-  const [missionsMap, setMissionsMap] = useState<Record<string, MissionData[]>>({});
-  const [loadingMissions, setLoadingMissions] = useState<string | null>(null);
+  // 한 번이라도 펼쳐본 카테고리 (미션 캐시 유지용)
+  const [expandedOnce, setExpandedOnce] = useState<Set<string>>(new Set());
 
   // 미션 생성
-  const [generatingId, setGeneratingId] = useState<string | null>(null);
   const [missionCount, setMissionCount] = useState(3);
+
+  // 삭제 확인 모달
+  const [deleteInfo, setDeleteInfo] = useState<DeleteInfo | null>(null);
 
   // 필터 & 페이지네이션
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>("");
   const [page, setPage] = useState(1);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    fetch("/api/categories")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data: { items: CategoryData[] } | null) => data?.items && setCategories(data.items))
-      .catch(console.error)
-      .finally(() => setLoading(false));
-  }, []);
 
   // 드롭다운 외부 클릭 닫기
   useEffect(() => {
@@ -146,28 +149,16 @@ export function CategoriesClient() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
-  const fetchMissions = useCallback(async (categoryId: string) => {
-    setLoadingMissions(categoryId);
-    try {
-      const res = await fetch(`/api/categories/${categoryId}/missions`);
-      const data = (await res.json()) as { missions: MissionData[] };
-      setMissionsMap((prev) => ({ ...prev, [categoryId]: data.missions }));
-    } catch {
-      toast.error("미션 목록을 불러올 수 없습니다.");
-    } finally {
-      setLoadingMissions(null);
-    }
-  }, []);
-
   function handleToggle(categoryId: string) {
-    if (expandedId === categoryId) {
-      setExpandedId(null);
-      return;
+    if (expandedId !== categoryId) {
+      setExpandedOnce((prev) => {
+        if (prev.has(categoryId)) return prev;
+        const next = new Set(prev);
+        next.add(categoryId);
+        return next;
+      });
     }
-    setExpandedId(categoryId);
-    if (!missionsMap[categoryId]) {
-      fetchMissions(categoryId);
-    }
+    setExpandedId(expandedId === categoryId ? null : categoryId);
   }
 
   async function handleCreate(e: React.FormEvent) {
@@ -176,35 +167,47 @@ export function CategoriesClient() {
       toast.error("카테고리 이름은 필수입니다.");
       return;
     }
-    setSaving(true);
     try {
-      const res = await fetch("/api/categories", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
-      });
-      if (!res.ok) {
-        const err = (await res.json()) as { error: string };
-        toast.error(err.error);
-        return;
-      }
-      const created = (await res.json()) as CategoryData;
-      setCategories((prev) => [created, ...prev]);
+      await createCategory.mutateAsync(form);
       setForm(emptyForm);
       setShowForm(false);
       toast.success("카테고리가 추가됐습니다.");
-    } catch {
-      toast.error("카테고리 생성에 실패했습니다.");
-    } finally {
-      setSaving(false);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "카테고리 생성에 실패했습니다.");
     }
   }
 
-  async function handleDeleteCategory(id: string) {
+  async function handleDeleteClick(id: string, name: string) {
+    setDeleteInfo({
+      categoryId: id,
+      categoryName: name,
+      missionCount: 0,
+      attemptCount: 0,
+      passedCount: 0,
+      inProgressCount: 0,
+    });
     try {
-      await fetch(`/api/categories/${id}`, { method: "DELETE" });
-      setCategories((prev) => prev.filter((c) => c.id !== id));
-      if (expandedId === id) setExpandedId(null);
+      const res = await fetch(`/api/categories/${id}`);
+      const data = await res.json();
+      setDeleteInfo({
+        categoryId: id,
+        categoryName: name,
+        missionCount: data.missionCount ?? 0,
+        attemptCount: data.attemptCount ?? 0,
+        passedCount: data.passedCount ?? 0,
+        inProgressCount: data.inProgressCount ?? 0,
+      });
+    } catch {
+      // 조회 실패해도 모달은 열어둠 (count 0으로 표시)
+    }
+  }
+
+  async function handleConfirmDelete() {
+    if (!deleteInfo) return;
+    try {
+      await deleteCategory.mutateAsync(deleteInfo.categoryId);
+      if (expandedId === deleteInfo.categoryId) setExpandedId(null);
+      setDeleteInfo(null);
       toast.success("삭제됐습니다.");
     } catch {
       toast.error("삭제에 실패했습니다.");
@@ -213,11 +216,7 @@ export function CategoriesClient() {
 
   async function handleDeleteMission(missionId: string, categoryId: string) {
     try {
-      await fetch(`/api/missions/${missionId}`, { method: "DELETE" });
-      setMissionsMap((prev) => ({
-        ...prev,
-        [categoryId]: prev[categoryId]?.filter((m) => m.id !== missionId) ?? [],
-      }));
+      await deleteMission.mutateAsync({ missionId, categoryId });
       toast.success("미션이 삭제됐습니다.");
     } catch {
       toast.error("미션 삭제에 실패했습니다.");
@@ -225,30 +224,71 @@ export function CategoriesClient() {
   }
 
   async function handleGenerateMissions(categoryId: string) {
-    setGeneratingId(categoryId);
     try {
-      const res = await fetch(`/api/categories/${categoryId}/missions`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ count: missionCount }),
-      });
-      const data = (await res.json()) as { error?: string; created: number };
-      if (data.error) {
-        toast.error(data.error);
-        return;
-      }
+      const data = await generateMissions.mutateAsync({ categoryId, count: missionCount });
       toast.success(`${data.created}개 미션 생성 완료`);
-      // 미션 목록 새로고침
-      await fetchMissions(categoryId);
-    } catch {
-      toast.error("미션 생성에 실패했습니다.");
-    } finally {
-      setGeneratingId(null);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "미션 생성에 실패했습니다.");
     }
   }
 
   return (
     <div className="space-y-4">
+      {/* 삭제 확인 모달 */}
+      <Dialog open={!!deleteInfo} onOpenChange={(open) => !open && setDeleteInfo(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>카테고리 삭제</DialogTitle>
+            <DialogDescription>
+              <strong>{deleteInfo?.categoryName}</strong> 카테고리를 삭제하면 관련된 모든 데이터가
+              함께 삭제됩니다.
+            </DialogDescription>
+          </DialogHeader>
+
+          {deleteInfo && (deleteInfo.missionCount > 0 || deleteInfo.attemptCount > 0) ? (
+            <div className="bg-destructive/5 border-destructive/20 rounded-md border p-3 text-sm">
+              <p className="text-destructive mb-2 font-medium">삭제되는 데이터</p>
+              <ul className="text-muted-foreground space-y-1 text-xs">
+                <li>
+                  미션 <strong className="text-foreground">{deleteInfo.missionCount}개</strong>
+                  {deleteInfo.passedCount > 0 && (
+                    <span className="text-green-600"> (통과 {deleteInfo.passedCount}개)</span>
+                  )}
+                  {deleteInfo.inProgressCount > 0 && (
+                    <span className="text-yellow-600">
+                      {" "}
+                      (진행중 {deleteInfo.inProgressCount}개)
+                    </span>
+                  )}
+                </li>
+                {deleteInfo.attemptCount > 0 && (
+                  <li>
+                    풀이 기록{" "}
+                    <strong className="text-foreground">{deleteInfo.attemptCount}건</strong>
+                  </li>
+                )}
+              </ul>
+            </div>
+          ) : (
+            <p className="text-muted-foreground text-sm">관련된 미션이 없습니다.</p>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" size="sm" onClick={() => setDeleteInfo(null)}>
+              취소
+            </Button>
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={handleConfirmDelete}
+              disabled={deleteCategory.isPending}
+            >
+              {deleteCategory.isPending ? "삭제 중..." : "삭제"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* 상단 */}
       <div className="flex items-center justify-between">
         {/* 소스 타입 드롭다운 */}
@@ -324,8 +364,8 @@ export function CategoriesClient() {
                 <Button type="button" variant="ghost" size="sm" onClick={() => setShowForm(false)}>
                   취소
                 </Button>
-                <Button type="submit" size="sm" disabled={saving}>
-                  {saving ? "저장 중..." : "저장"}
+                <Button type="submit" size="sm" disabled={createCategory.isPending}>
+                  {createCategory.isPending ? "저장 중..." : "저장"}
                 </Button>
               </div>
             </form>
@@ -334,7 +374,7 @@ export function CategoriesClient() {
       )}
 
       {/* 카테고리 목록 */}
-      {loading ? (
+      {isLoading ? (
         <div className="space-y-2">
           {Array.from({ length: 5 }).map((_, i) => (
             <Skeleton key={i} className="h-16 w-full" />
@@ -346,165 +386,200 @@ export function CategoriesClient() {
         </div>
       ) : (
         <div className="space-y-2">
-          {paged.map((cat) => {
-            const isExpanded = expandedId === cat.id;
-            const missions = missionsMap[cat.id] ?? [];
-            const isLoadingMissions = loadingMissions === cat.id;
-            const isGenerating = generatingId === cat.id;
-
-            return (
-              <Card key={cat.id}>
-                {/* 카테고리 헤더 */}
-                <CardContent className="p-0">
-                  <div className="flex w-full items-center gap-3 p-3">
-                    <button
-                      onClick={() => handleToggle(cat.id)}
-                      className="flex min-w-0 flex-1 cursor-pointer items-center gap-3 text-left"
-                    >
-                      {isExpanded ? (
-                        <ChevronDown className="text-muted-foreground h-4 w-4 shrink-0" />
-                      ) : (
-                        <ChevronRight className="text-muted-foreground h-4 w-4 shrink-0" />
-                      )}
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2">
-                          <p className="truncate text-sm font-medium">{cat.name}</p>
-                          <span
-                            className={`rounded-full px-1.5 py-0.5 text-[10px] font-medium ${sourceConfig[cat.source_type]?.style ?? "bg-gray-100 text-gray-700"}`}
-                          >
-                            {sourceConfig[cat.source_type]?.label ?? cat.source_type}
-                          </span>
-                          {missions.length > 0 && (
-                            <span className="text-muted-foreground text-[10px]">
-                              미션 {missions.length}개
-                            </span>
-                          )}
-                        </div>
-                        {cat.description && (
-                          <p className="text-muted-foreground mt-0.5 line-clamp-1 text-xs">
-                            {cat.description}
-                          </p>
-                        )}
-                      </div>
-                    </button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7 shrink-0"
-                      onClick={() => handleDeleteCategory(cat.id)}
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
-                  </div>
-
-                  {/* 확장 영역 */}
-                  {isExpanded && (
-                    <div className="border-t px-3 pt-2 pb-3">
-                      {/* 미션 생성 영역 */}
-                      <div className="mb-3 flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <div className="flex items-center gap-1">
-                            <button
-                              onClick={() => setMissionCount((c) => Math.max(1, c - 1))}
-                              className="border-input hover:bg-accent flex h-6 w-6 cursor-pointer items-center justify-center rounded border text-xs transition-colors"
-                            >
-                              -
-                            </button>
-                            <span className="w-5 text-center text-xs font-medium tabular-nums">
-                              {missionCount}
-                            </span>
-                            <button
-                              onClick={() => setMissionCount((c) => Math.min(10, c + 1))}
-                              className="border-input hover:bg-accent flex h-6 w-6 cursor-pointer items-center justify-center rounded border text-xs transition-colors"
-                            >
-                              +
-                            </button>
-                          </div>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="h-7 gap-1.5 text-xs"
-                            onClick={() => handleGenerateMissions(cat.id)}
-                            disabled={isGenerating}
-                          >
-                            {isGenerating ? (
-                              <RefreshCw className="h-3 w-3 animate-spin" />
-                            ) : (
-                              <Sparkles className="h-3 w-3" />
-                            )}
-                            미션 생성
-                          </Button>
-                        </div>
-                      </div>
-
-                      {/* 미션 목록 */}
-                      {isLoadingMissions ? (
-                        <div className="space-y-1.5">
-                          {Array.from({ length: 3 }).map((_, i) => (
-                            <Skeleton key={i} className="h-10 w-full" />
-                          ))}
-                        </div>
-                      ) : missions.length === 0 ? (
-                        <p className="text-muted-foreground py-4 text-center text-xs">
-                          아직 미션이 없습니다. 위 버튼으로 생성하세요.
-                        </p>
-                      ) : (
-                        <div className="space-y-1.5">
-                          {missions.map((mission) => {
-                            const TypeIcon = typeIcons[mission.mission_type];
-                            return (
-                              <div
-                                key={mission.id}
-                                className="hover:bg-accent/50 flex items-center gap-2 rounded-md px-2 py-1.5 transition-colors"
-                              >
-                                <TypeIcon className="text-muted-foreground h-3.5 w-3.5 shrink-0" />
-                                <Link href={`/missions/${mission.id}`} className="min-w-0 flex-1">
-                                  <p className="truncate text-xs font-medium">{mission.title}</p>
-                                </Link>
-                                <Badge
-                                  variant="outline"
-                                  className={`shrink-0 text-[10px] ${statusStyles[mission.status] ?? ""}`}
-                                >
-                                  {typeLabels[mission.mission_type]}
-                                </Badge>
-                                {mission.last_score !== null && (
-                                  <span className="text-muted-foreground shrink-0 text-[10px] tabular-nums">
-                                    {mission.last_score}점
-                                  </span>
-                                )}
-                                <Badge
-                                  variant="outline"
-                                  className={`shrink-0 text-[10px] ${statusStyles[mission.status] ?? ""}`}
-                                >
-                                  {mission.status === "passed"
-                                    ? "통과"
-                                    : mission.status === "in_progress"
-                                      ? "진행중"
-                                      : "대기"}
-                                </Badge>
-                                <button
-                                  onClick={() => handleDeleteMission(mission.id, cat.id)}
-                                  className="text-muted-foreground hover:text-destructive shrink-0 cursor-pointer p-0.5 transition-colors"
-                                >
-                                  <Trash2 className="h-3 w-3" />
-                                </button>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            );
-          })}
+          {paged.map((cat) => (
+            <CategoryRow
+              key={cat.id}
+              cat={cat}
+              isExpanded={expandedId === cat.id}
+              hasExpanded={expandedOnce.has(cat.id)}
+              onToggle={() => handleToggle(cat.id)}
+              onDeleteClick={() => handleDeleteClick(cat.id, cat.name)}
+              onDeleteMission={handleDeleteMission}
+              onGenerateMissions={() => handleGenerateMissions(cat.id)}
+              isGenerating={
+                generateMissions.isPending && generateMissions.variables?.categoryId === cat.id
+              }
+              missionCount={missionCount}
+              onMissionCountChange={setMissionCount}
+            />
+          ))}
 
           {/* 페이지네이션 */}
           {totalPages > 1 && <Pagination page={page} totalPages={totalPages} onPage={goToPage} />}
         </div>
       )}
     </div>
+  );
+}
+
+function CategoryRow({
+  cat,
+  isExpanded,
+  hasExpanded,
+  onToggle,
+  onDeleteClick,
+  onDeleteMission,
+  onGenerateMissions,
+  isGenerating,
+  missionCount,
+  onMissionCountChange,
+}: {
+  cat: CategoryData;
+  isExpanded: boolean;
+  hasExpanded: boolean;
+  onToggle: () => void;
+  onDeleteClick: () => void;
+  onDeleteMission: (missionId: string, categoryId: string) => void;
+  onGenerateMissions: () => void;
+  isGenerating: boolean;
+  missionCount: number;
+  onMissionCountChange: (count: number) => void;
+}) {
+  const { data: missions = [], isLoading: isLoadingMissions } = useCategoryMissions(
+    cat.id,
+    hasExpanded,
+  );
+
+  return (
+    <Card>
+      {/* 카테고리 헤더 */}
+      <CardContent className="p-0">
+        <div className="flex w-full items-center gap-3 p-3">
+          <button
+            onClick={onToggle}
+            className="flex min-w-0 flex-1 cursor-pointer items-center gap-3 text-left"
+          >
+            {isExpanded ? (
+              <ChevronDown className="text-muted-foreground h-4 w-4 shrink-0" />
+            ) : (
+              <ChevronRight className="text-muted-foreground h-4 w-4 shrink-0" />
+            )}
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2">
+                <p className="truncate text-sm font-medium">{cat.name}</p>
+                <span
+                  className={`rounded-full px-1.5 py-0.5 text-[10px] font-medium ${sourceConfig[cat.source_type]?.style ?? "bg-gray-100 text-gray-700"}`}
+                >
+                  {sourceConfig[cat.source_type]?.label ?? cat.source_type}
+                </span>
+                {missions.length > 0 && (
+                  <span className="text-muted-foreground text-[10px]">
+                    미션 {missions.length}개
+                  </span>
+                )}
+              </div>
+              {cat.description && (
+                <p className="text-muted-foreground mt-0.5 line-clamp-1 text-xs">
+                  {cat.description}
+                </p>
+              )}
+            </div>
+          </button>
+          <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={onDeleteClick}>
+            <Trash2 className="h-3.5 w-3.5" />
+          </Button>
+        </div>
+
+        {/* 확장 영역 */}
+        {isExpanded && (
+          <div className="border-t px-3 pt-2 pb-3">
+            {/* 미션 생성 영역 */}
+            <div className="mb-3 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => onMissionCountChange(Math.max(1, missionCount - 1))}
+                    className="border-input hover:bg-accent flex h-6 w-6 cursor-pointer items-center justify-center rounded border text-xs transition-colors"
+                  >
+                    -
+                  </button>
+                  <span className="w-5 text-center text-xs font-medium tabular-nums">
+                    {missionCount}
+                  </span>
+                  <button
+                    onClick={() => onMissionCountChange(Math.min(10, missionCount + 1))}
+                    className="border-input hover:bg-accent flex h-6 w-6 cursor-pointer items-center justify-center rounded border text-xs transition-colors"
+                  >
+                    +
+                  </button>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-7 gap-1.5 text-xs"
+                  onClick={onGenerateMissions}
+                  disabled={isGenerating}
+                >
+                  {isGenerating ? (
+                    <RefreshCw className="h-3 w-3 animate-spin" />
+                  ) : (
+                    <Sparkles className="h-3 w-3" />
+                  )}
+                  미션 생성
+                </Button>
+              </div>
+            </div>
+
+            {/* 미션 목록 */}
+            {isLoadingMissions ? (
+              <div className="space-y-1.5">
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <Skeleton key={i} className="h-10 w-full" />
+                ))}
+              </div>
+            ) : missions.length === 0 ? (
+              <p className="text-muted-foreground py-4 text-center text-xs">
+                아직 미션이 없습니다. 위 버튼으로 생성하세요.
+              </p>
+            ) : (
+              <div className="space-y-1.5">
+                {missions.map((mission) => {
+                  const TypeIcon = typeIcons[mission.mission_type];
+                  return (
+                    <div
+                      key={mission.id}
+                      className="hover:bg-accent/50 flex items-center gap-2 rounded-md px-2 py-1.5 transition-colors"
+                    >
+                      <TypeIcon className="text-muted-foreground h-3.5 w-3.5 shrink-0" />
+                      <Link href={`/missions/${mission.id}`} className="min-w-0 flex-1">
+                        <p className="truncate text-xs font-medium">{mission.title}</p>
+                      </Link>
+                      <Badge
+                        variant="outline"
+                        className={`shrink-0 text-[10px] ${statusStyles[mission.status] ?? ""}`}
+                      >
+                        {typeLabels[mission.mission_type]}
+                      </Badge>
+                      {mission.last_score !== null && (
+                        <span className="text-muted-foreground shrink-0 text-[10px] tabular-nums">
+                          {mission.last_score}점
+                        </span>
+                      )}
+                      <Badge
+                        variant="outline"
+                        className={`shrink-0 text-[10px] ${statusStyles[mission.status] ?? ""}`}
+                      >
+                        {mission.status === "passed"
+                          ? "통과"
+                          : mission.status === "in_progress"
+                            ? "진행중"
+                            : "대기"}
+                      </Badge>
+                      <button
+                        onClick={() => onDeleteMission(mission.id, cat.id)}
+                        className="text-muted-foreground hover:text-destructive shrink-0 cursor-pointer p-0.5 transition-colors"
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 

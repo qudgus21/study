@@ -1,30 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { Flame, Target, TrendingUp, AlertTriangle } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ProgressRing } from "./progress-ring";
 import { RadarChart } from "./radar-chart";
+import { useDashboard } from "@/lib/queries/use-dashboard";
 
 type MissionType = "concept" | "discussion" | "code";
-
-interface DashboardData {
-  progress: Record<MissionType, { passed: number; total: number }>;
-  streak: number;
-  categoryStats: Array<{
-    skill_name: string;
-    total_missions: number;
-    passed_missions: number;
-    confidence_level: number;
-  }>;
-  weakAreas: Array<{
-    skill_name: string;
-    confidence_level: number;
-  }>;
-  totalMissions: number;
-  completedMissions: number;
-}
 
 const typeConfig: Record<MissionType, { label: string; color: string }> = {
   concept: { label: "개념", color: "#3b82f6" },
@@ -33,18 +16,9 @@ const typeConfig: Record<MissionType, { label: string; color: string }> = {
 };
 
 export function DashboardClient() {
-  const [data, setData] = useState<DashboardData | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { data, isLoading } = useDashboard();
 
-  useEffect(() => {
-    fetch("/api/dashboard")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => d && setData(d))
-      .catch(console.error)
-      .finally(() => setLoading(false));
-  }, []);
-
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="space-y-4">
         <Skeleton className="h-32 w-full" />

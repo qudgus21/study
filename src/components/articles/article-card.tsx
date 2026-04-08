@@ -6,22 +6,16 @@ import { toast } from "sonner";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  useUpdateArticle,
+  useGenerateCategory,
+  type ArticleData,
+} from "@/lib/queries/use-articles";
 
-export interface ArticleData {
-  id: string;
-  title: string;
-  url: string;
-  source: string;
-  summary: string;
-  published_at: string;
-  is_read: boolean;
-  is_bookmarked: boolean;
-  topic_generated?: boolean;
-}
+export type { ArticleData };
 
 interface ArticleCardProps {
   article: ArticleData;
-  onUpdate: (id: string, changes: Partial<ArticleData>) => void;
 }
 
 function timeAgo(isoDate: string): string {
@@ -34,42 +28,27 @@ function timeAgo(isoDate: string): string {
   return new Date(isoDate).toLocaleDateString("ko-KR", { month: "short", day: "numeric" });
 }
 
-export function ArticleCard({ article, onUpdate }: ArticleCardProps) {
-  const [loadingBookmark, setLoadingBookmark] = useState(false);
+export function ArticleCard({ article }: ArticleCardProps) {
+  const updateArticle = useUpdateArticle();
+  const generateCategory = useGenerateCategory();
   const [loadingTopic, setLoadingTopic] = useState(false);
 
-  async function handleMarkRead() {
+  function handleMarkRead() {
     if (article.is_read) return;
-    onUpdate(article.id, { is_read: true });
-    await fetch(`/api/articles/${article.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ is_read: true }),
-    });
+    updateArticle.mutate({ id: article.id, changes: { is_read: true } });
   }
 
-  async function handleToggleBookmark() {
-    setLoadingBookmark(true);
-    const next = !article.is_bookmarked;
-    onUpdate(article.id, { is_bookmarked: next });
-    await fetch(`/api/articles/${article.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ is_bookmarked: next }),
+  function handleToggleBookmark() {
+    updateArticle.mutate({
+      id: article.id,
+      changes: { is_bookmarked: !article.is_bookmarked },
     });
-    setLoadingBookmark(false);
   }
 
   async function handleGenerateTopic() {
     setLoadingTopic(true);
     try {
-      const res = await fetch(`/api/articles/${article.id}/generate-category`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({}),
-      });
-      if (!res.ok) throw new Error("Failed");
-      onUpdate(article.id, { topic_generated: true });
+      await generateCategory.mutateAsync(article.id);
       toast.success("카테고리가 생성됐습니다.");
     } catch {
       toast.error("카테고리 생성에 실패했습니다.");
@@ -119,7 +98,7 @@ export function ArticleCard({ article, onUpdate }: ArticleCardProps) {
               size="icon"
               className="h-7 w-7"
               onClick={handleToggleBookmark}
-              disabled={loadingBookmark}
+              disabled={updateArticle.isPending}
               title={article.is_bookmarked ? "북마크 해제" : "북마크"}
             >
               {article.is_bookmarked ? (

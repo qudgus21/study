@@ -1,56 +1,16 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { MissionCard, type MissionCardData } from "@/components/missions/mission-card";
+import { MissionCard } from "@/components/missions/mission-card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useMissions } from "@/lib/queries/use-missions";
 
 type FilterType = "all" | "concept" | "discussion" | "code";
 
 export function MissionListClient() {
-  const [missions, setMissions] = useState<MissionCardData[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data: missions = [], isLoading } = useMissions();
   const [filter, setFilter] = useState<FilterType>("all");
-
-  useEffect(() => {
-    async function fetchMissions() {
-      try {
-        const res = await fetch("/api/missions");
-        if (!res.ok) throw new Error("Failed to fetch");
-        const data = await res.json();
-
-        interface MissionResponse {
-          id: string;
-          title?: string;
-          mission_type: "concept" | "discussion" | "code";
-          status: "pending" | "in_progress" | "passed" | "failed";
-          category_name: string;
-          attempts?: { score?: number }[];
-        }
-
-        const mapped: MissionCardData[] = (data as MissionResponse[]).map((m) => ({
-          id: m.id,
-          title: m.title ?? "제목 없음",
-          missionType: m.mission_type,
-          status: m.status,
-          categoryName: m.category_name,
-          attemptCount: m.attempts?.length ?? 0,
-          lastScore:
-            m.attempts && m.attempts.length > 0
-              ? (m.attempts[m.attempts.length - 1]?.score ?? null)
-              : null,
-        }));
-
-        setMissions(mapped);
-      } catch (error) {
-        console.error("Failed to fetch missions:", error);
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    fetchMissions();
-  }, []);
 
   const filtered = filter === "all" ? missions : missions.filter((m) => m.missionType === filter);
 
@@ -61,7 +21,7 @@ export function MissionListClient() {
     code: missions.filter((m) => m.missionType === "code" && m.status === "passed").length,
   };
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="space-y-3">
         {Array.from({ length: 5 }).map((_, i) => (

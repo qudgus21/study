@@ -1,6 +1,5 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import {
   Users,
   ClipboardList,
@@ -12,11 +11,7 @@ import {
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import type { JdInsight } from "@/lib/wanted/jd-analyzer";
-
-interface InsightResponse {
-  insight: JdInsight | null;
-}
+import { useJdInsights } from "@/lib/queries/use-jd";
 
 interface CountItem {
   name: string;
@@ -129,18 +124,9 @@ const SECTIONS = [
 ] as const;
 
 export function JdInsights() {
-  const [data, setData] = useState<JdInsight | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { data, isLoading } = useJdInsights();
 
-  useEffect(() => {
-    fetch("/api/jd/insights")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((res: InsightResponse | null) => res?.insight && setData(res.insight))
-      .catch(console.error)
-      .finally(() => setLoading(false));
-  }, []);
-
-  if (loading) return <Skeleton className="h-64 w-full" />;
+  if (isLoading) return <Skeleton className="h-64 w-full" />;
 
   if (!data) {
     return (

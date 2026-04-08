@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, BookOpen, MessageSquare, Code, Users } from "lucide-react";
 import Link from "next/link";
@@ -14,26 +14,9 @@ import { EvalStreamingDisplay } from "@/components/missions/eval-streaming-displ
 import { ScoreBadge } from "@/components/missions/score-badge";
 import { useMissionStore } from "@/stores/mission-store";
 import { parseEvaluation } from "@/lib/utils/score-parser";
-import type { MissionType } from "@/lib/agents";
 import { Skeleton } from "@/components/ui/skeleton";
 import { MarkdownContent } from "@/components/ui/markdown-content";
-
-interface MissionDetail {
-  id: string;
-  missionType: MissionType;
-  status: string;
-  title: string;
-  description: string | null;
-  codeSnippet: string | null;
-  categoryName: string;
-  attempts: Array<{
-    id: string;
-    score: number | null;
-    passed: boolean;
-    feedbackSummary: string | null;
-    createdAt: string;
-  }>;
-}
+import { useMission, useInvalidateMission } from "@/lib/queries/use-missions";
 
 const typeIcons = {
   concept: BookOpen,
@@ -70,8 +53,8 @@ function parseSSEEvents(chunk: string): Array<{ event: string; data: string }> {
 
 export function MissionDetailClient({ missionId }: { missionId: string }) {
   const router = useRouter();
-  const [mission, setMission] = useState<MissionDetail | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { data: mission, isLoading } = useMission(missionId);
+  const invalidateMission = useInvalidateMission();
 
   const {
     step,
@@ -94,39 +77,6 @@ export function MissionDetailClient({ missionId }: { missionId: string }) {
     setCurrentMission(missionId);
   }, [missionId, setCurrentMission]);
 
-  useEffect(() => {
-    async function fetchMission() {
-      try {
-        const res = await fetch(`/api/missions/${missionId}`);
-        if (!res.ok) throw new Error("Failed to fetch");
-        const data = await res.json();
-
-        setMission({
-          id: data.id,
-          missionType: data.mission_type as MissionType,
-          status: data.status,
-          title: data.title ?? data.topic_title ?? "",
-          description: data.description ?? data.topic_description ?? null,
-          codeSnippet: data.code_snippet ?? null,
-          categoryName: data.category_name ?? "기타",
-          attempts: (data.attempts ?? []).map((a: Record<string, unknown>) => ({
-            id: a.id,
-            score: a.score ?? null,
-            passed: a.passed ?? false,
-            feedbackSummary: a.feedback_summary ?? null,
-            createdAt: a.created_at ?? "",
-          })),
-        });
-      } catch (error) {
-        console.error("Failed to fetch mission:", error);
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    fetchMission();
-  }, [missionId]);
-
   const saveAttempt = useCallback(
     async (evalResult: string, score: number, passed: boolean) => {
       if (!mission) return;
@@ -148,25 +98,8 @@ export function MissionDetailClient({ missionId }: { missionId: string }) {
 
         if (!res.ok) throw new Error("Failed to submit");
 
-        const newStatus = passed ? "passed" : "in_progress";
-        setMission((prev) =>
-          prev
-            ? {
-                ...prev,
-                status: newStatus,
-                attempts: [
-                  ...prev.attempts,
-                  {
-                    id: "temp",
-                    score,
-                    passed,
-                    feedbackSummary: evalResult.slice(0, 500),
-                    createdAt: new Date().toISOString(),
-                  },
-                ],
-              }
-            : null,
-        );
+        // 서버 데이터 갱신
+        invalidateMission(missionId);
 
         setParsedScore(score);
         setStep("result");
@@ -176,7 +109,7 @@ export function MissionDetailClient({ missionId }: { missionId: string }) {
         toast.error("평가 저장에 실패했습니다.");
       }
     },
-    [mission, draftAnswer, setStep, setParsedScore],
+    [mission, draftAnswer, missionId, setStep, setParsedScore, invalidateMission],
   );
 
   const startEvaluation = useCallback(async () => {
@@ -188,7 +121,6 @@ export function MissionDetailClient({ missionId }: { missionId: string }) {
     const store = useMissionStore.getState();
     store.setIsEvaluating(true);
     store.setEvalError(null);
-    // streamingText 초기화
     useMissionStore.setState({ streamingText: "" });
     setStep("evaluating");
 
@@ -224,7 +156,6 @@ export function MissionDetailClient({ missionId }: { missionId: string }) {
 
         sseBuffer += decoder.decode(value, { stream: true });
         const events = parseSSEEvents(sseBuffer);
-        // 마지막 불완전 이벤트를 버퍼에 유지
         const lastNewline = sseBuffer.lastIndexOf("\n\n");
         sseBuffer = lastNewline >= 0 ? sseBuffer.slice(lastNewline + 2) : sseBuffer;
 
@@ -261,7 +192,6 @@ export function MissionDetailClient({ missionId }: { missionId: string }) {
         }
       }
 
-      // 평가 완료 — 점수 파싱 및 자동 저장
       if (fullText) {
         const parsed = parseEvaluation(fullText);
         const score = parsed.score ?? 0;
@@ -290,7 +220,7 @@ export function MissionDetailClient({ missionId }: { missionId: string }) {
     resetForRetry();
   };
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="space-y-4">
         <Skeleton className="h-8 w-48" />
@@ -390,7 +320,6 @@ export function MissionDetailClient({ missionId }: { missionId: string }) {
                 <ScoreBadge score={parsedScore} size="lg" />
               </div>
 
-              {/* 평가 내용 표시 */}
               {streamingText && (
                 <Card>
                   <CardContent className="max-h-[400px] overflow-auto p-4">
@@ -412,7 +341,6 @@ export function MissionDetailClient({ missionId }: { missionId: string }) {
                         variant="outline"
                         className="gap-2"
                         onClick={() => {
-                          // TODO: Junior colleague도 CLI 연동으로 전환
                           toast.info("주니어 동료 기능은 준비 중입니다.");
                         }}
                       >
