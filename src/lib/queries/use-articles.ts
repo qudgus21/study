@@ -45,6 +45,9 @@ export function useUpdateArticle() {
       );
       return { previous };
     },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.dashboard });
+    },
     onError: (_err, _vars, context) => {
       if (context?.previous) {
         queryClient.setQueryData(queryKeys.articles, context.previous);

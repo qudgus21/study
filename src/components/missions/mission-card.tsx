@@ -41,9 +41,9 @@ export function MissionCard({
   const Icon = type.icon;
 
   return (
-    <Card className="hover:border-primary/30 transition-colors">
-      <CardContent className="flex items-center gap-4 p-4">
-        <Link href={`/missions/${mission.id}`} className="flex min-w-0 flex-1 items-center gap-4">
+    <Link href={`/missions/${mission.id}`} className="block">
+      <Card className="hover:border-primary/30 transition-colors">
+        <CardContent className="flex items-center gap-4 p-4">
           <div
             className={cn(
               "flex h-10 w-10 shrink-0 items-center justify-center rounded-lg",
@@ -77,20 +77,21 @@ export function MissionCard({
           </div>
 
           <ArrowRight className="text-muted-foreground h-4 w-4 shrink-0" />
-        </Link>
 
-        {onDelete && (
-          <button
-            onClick={(e) => {
-              e.preventDefault();
-              onDelete(mission.id);
-            }}
-            className="text-muted-foreground hover:text-destructive shrink-0 cursor-pointer p-1 transition-colors"
-          >
-            <Trash2 className="h-4 w-4" />
-          </button>
-        )}
-      </CardContent>
-    </Card>
+          {onDelete && (
+            <button
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onDelete(mission.id);
+              }}
+              className="text-muted-foreground hover:text-destructive shrink-0 cursor-pointer p-1 transition-colors"
+            >
+              <Trash2 className="h-4 w-4" />
+            </button>
+          )}
+        </CardContent>
+      </Card>
+    </Link>
   );
 }

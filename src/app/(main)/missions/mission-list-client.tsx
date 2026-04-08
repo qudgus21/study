@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Search } from "lucide-react";
 import { toast } from "sonner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { MissionCard } from "@/components/missions/mission-card";
@@ -13,6 +14,7 @@ export function MissionListClient() {
   const { data: missions = [], isLoading } = useMissions();
   const deleteMission = useDeleteMissionFromList();
   const [filter, setFilter] = useState<FilterType>("all");
+  const [search, setSearch] = useState("");
 
   function handleDelete(missionId: string) {
     deleteMission.mutate(missionId, {
@@ -21,7 +23,16 @@ export function MissionListClient() {
     });
   }
 
-  const filtered = filter === "all" ? missions : missions.filter((m) => m.missionType === filter);
+  const keyword = search.trim().toLowerCase();
+  const typeFiltered =
+    filter === "all" ? missions : missions.filter((m) => m.missionType === filter);
+  const filtered = keyword
+    ? typeFiltered.filter(
+        (m) =>
+          m.title.toLowerCase().includes(keyword) ||
+          m.categoryName?.toLowerCase().includes(keyword),
+      )
+    : typeFiltered;
 
   const stats = {
     concept: missions.filter((m) => m.missionType === "concept" && m.status === "passed").length,
@@ -56,6 +67,18 @@ export function MissionListClient() {
           <div className="text-2xl font-bold text-green-600">{stats.code}</div>
           <div className="text-muted-foreground text-xs">코드 통과</div>
         </div>
+      </div>
+
+      {/* 검색 */}
+      <div className="relative">
+        <Search className="text-muted-foreground absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2" />
+        <input
+          type="text"
+          placeholder="미션 제목, 카테고리 검색..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="border-input bg-background w-full rounded-md border py-2 pr-3 pl-9 text-sm"
+        />
       </div>
 
       {/* 필터 탭 */}

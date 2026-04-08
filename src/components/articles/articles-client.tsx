@@ -1,7 +1,14 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "lucide-react";
+import {
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
+  Search,
+} from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { ArticleCard } from "./article-card";
@@ -28,6 +35,7 @@ export function ArticlesClient() {
   const [tab, setTab] = useState<FilterTab>("all");
   const [sourceFilter, setSourceFilter] = useState<SourceGroup>("");
   const [page, setPage] = useState(1);
+  const [search, setSearch] = useState("");
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -50,17 +58,28 @@ export function ArticlesClient() {
     return a.source === sourceFilter;
   });
 
+  // 검색 필터
+  const keyword = search.trim().toLowerCase();
+  const searchFiltered = keyword
+    ? sourceFiltered.filter(
+        (a) =>
+          a.title.toLowerCase().includes(keyword) ||
+          a.summary?.toLowerCase().includes(keyword) ||
+          a.source.toLowerCase().includes(keyword),
+      )
+    : sourceFiltered;
+
   const filtered =
     tab === "unread"
-      ? sourceFiltered.filter((a) => !a.is_read)
+      ? searchFiltered.filter((a) => !a.is_read)
       : tab === "bookmarked"
-        ? sourceFiltered.filter((a) => a.is_bookmarked)
-        : sourceFiltered;
+        ? searchFiltered.filter((a) => a.is_bookmarked)
+        : searchFiltered;
 
   const counts = {
-    all: sourceFiltered.length,
-    unread: sourceFiltered.filter((a) => !a.is_read).length,
-    bookmarked: sourceFiltered.filter((a) => a.is_bookmarked).length,
+    all: searchFiltered.length,
+    unread: searchFiltered.filter((a) => !a.is_read).length,
+    bookmarked: searchFiltered.filter((a) => a.is_bookmarked).length,
   };
 
   const total = filtered.length;
@@ -87,6 +106,21 @@ export function ArticlesClient() {
 
   return (
     <div className="space-y-4">
+      {/* 검색 */}
+      <div className="relative">
+        <Search className="text-muted-foreground absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2" />
+        <input
+          type="text"
+          placeholder="제목, 요약, 소스 검색..."
+          value={search}
+          onChange={(e) => {
+            setSearch(e.target.value);
+            setPage(1);
+          }}
+          className="border-input bg-background w-full rounded-md border py-2 pr-3 pl-9 text-sm"
+        />
+      </div>
+
       {/* 소스 드롭다운 */}
       <div ref={dropdownRef} className="relative inline-block">
         <button

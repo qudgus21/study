@@ -14,6 +14,7 @@ import {
   Code,
   Sparkles,
   RefreshCw,
+  Search,
 } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
@@ -123,7 +124,8 @@ export function CategoriesClient() {
   // 삭제 확인 모달
   const [deleteInfo, setDeleteInfo] = useState<DeleteInfo | null>(null);
 
-  // 필터 & 페이지네이션
+  // 검색 & 필터 & 페이지네이션
+  const [search, setSearch] = useState("");
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>("");
   const [page, setPage] = useState(1);
   const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -147,9 +149,16 @@ export function CategoriesClient() {
     }
   }, [generateModal.logs]);
 
-  const filtered = sourceFilter
+  const keyword = search.trim().toLowerCase();
+  const sourceFiltered = sourceFilter
     ? categories.filter((c) => c.source_type === sourceFilter)
     : categories;
+  const filtered = keyword
+    ? sourceFiltered.filter(
+        (c) =>
+          c.name.toLowerCase().includes(keyword) || c.description?.toLowerCase().includes(keyword),
+      )
+    : sourceFiltered;
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PER_PAGE));
   const paged = filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE);
@@ -364,6 +373,21 @@ export function CategoriesClient() {
         </DialogContent>
       </Dialog>
 
+      {/* 검색 */}
+      <div className="relative">
+        <Search className="text-muted-foreground absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2" />
+        <input
+          type="text"
+          placeholder="카테고리 이름, 설명 검색..."
+          value={search}
+          onChange={(e) => {
+            setSearch(e.target.value);
+            setPage(1);
+          }}
+          className="border-input bg-background w-full rounded-md border py-2 pr-3 pl-9 text-sm"
+        />
+      </div>
+
       {/* 상단 */}
       <div className="flex items-center justify-between">
         {/* 소스 타입 드롭다운 */}
@@ -558,38 +582,37 @@ function CategoryRow({
     <Card>
       {/* 카테고리 헤더 */}
       <CardContent className="p-0">
-        <div className="flex w-full items-center gap-3 p-3">
-          <button
-            onClick={onToggle}
-            className="flex min-w-0 flex-1 cursor-pointer items-center gap-3 text-left"
-          >
-            {isExpanded ? (
-              <ChevronDown className="text-muted-foreground h-4 w-4 shrink-0" />
-            ) : (
-              <ChevronRight className="text-muted-foreground h-4 w-4 shrink-0" />
-            )}
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-2">
-                <p className="truncate text-sm font-medium">{cat.name}</p>
-                <span
-                  className={`rounded-full px-1.5 py-0.5 text-[10px] font-medium ${sourceConfig[cat.source_type]?.style ?? "bg-gray-100 text-gray-700"}`}
-                >
-                  {sourceConfig[cat.source_type]?.label ?? cat.source_type}
-                </span>
-                {missions.length > 0 && (
-                  <span className="text-muted-foreground text-[10px]">
-                    미션 {missions.length}개
-                  </span>
-                )}
-              </div>
-              {cat.description && (
-                <p className="text-muted-foreground mt-0.5 line-clamp-1 text-xs">
-                  {cat.description}
-                </p>
+        <div onClick={onToggle} className="flex w-full cursor-pointer items-center gap-3 p-3">
+          {isExpanded ? (
+            <ChevronDown className="text-muted-foreground h-4 w-4 shrink-0" />
+          ) : (
+            <ChevronRight className="text-muted-foreground h-4 w-4 shrink-0" />
+          )}
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2">
+              <p className="truncate text-sm font-medium">{cat.name}</p>
+              <span
+                className={`rounded-full px-1.5 py-0.5 text-[10px] font-medium ${sourceConfig[cat.source_type]?.style ?? "bg-gray-100 text-gray-700"}`}
+              >
+                {sourceConfig[cat.source_type]?.label ?? cat.source_type}
+              </span>
+              {missions.length > 0 && (
+                <span className="text-muted-foreground text-[10px]">미션 {missions.length}개</span>
               )}
             </div>
-          </button>
-          <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={onDeleteClick}>
+            {cat.description && (
+              <p className="text-muted-foreground mt-0.5 line-clamp-1 text-xs">{cat.description}</p>
+            )}
+          </div>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7 shrink-0"
+            onClick={(e) => {
+              e.stopPropagation();
+              onDeleteClick();
+            }}
+          >
             <Trash2 className="h-3.5 w-3.5" />
           </Button>
         </div>

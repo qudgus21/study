@@ -1,6 +1,6 @@
 "use client";
 
-import { ExternalLink, Bookmark, BookmarkCheck, Trash2 } from "lucide-react";
+import { ExternalLink, Bookmark, BookmarkCheck, Trash2, Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -27,9 +27,13 @@ export function ArticleCard({ article }: ArticleCardProps) {
   const updateArticle = useUpdateArticle();
   const deleteArticle = useDeleteArticle();
 
-  function handleMarkRead() {
-    if (article.is_read) return;
-    updateArticle.mutate({ id: article.id, changes: { is_read: true } });
+  function handleToggleRead(e: React.MouseEvent) {
+    e.stopPropagation();
+    const next = !article.is_read;
+    updateArticle.mutate(
+      { id: article.id, changes: { is_read: next } },
+      { onSuccess: () => toast.success(next ? "읽음 처리했습니다." : "읽음을 취소했습니다.") },
+    );
   }
 
   function handleToggleBookmark(e: React.MouseEvent) {
@@ -48,7 +52,6 @@ export function ArticleCard({ article }: ArticleCardProps) {
   }
 
   function handleOpen() {
-    handleMarkRead();
     window.open(article.url, "_blank", "noopener,noreferrer");
   }
 
@@ -83,6 +86,21 @@ export function ArticleCard({ article }: ArticleCardProps) {
 
           {/* 액션 버튼 */}
           <div className="flex shrink-0 flex-col gap-1">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7"
+              onClick={handleToggleRead}
+              disabled={updateArticle.isPending}
+              title={article.is_read ? "읽음 취소" : "읽음 표시"}
+            >
+              {article.is_read ? (
+                <Eye className="h-4 w-4 text-green-500" />
+              ) : (
+                <EyeOff className="h-4 w-4" />
+              )}
+            </Button>
+
             <Button
               variant="ghost"
               size="icon"

@@ -93,6 +93,7 @@ export function useCreateCategory() {
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.categories.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.dashboard });
     },
   });
 }
