@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
+import { blockIfDemo } from "@/lib/demo-mode";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -188,6 +189,7 @@ export function CategoriesClient() {
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
+    if (blockIfDemo()) return;
     if (!form.name) {
       toast.error("카테고리 이름은 필수입니다.");
       return;
@@ -229,6 +231,7 @@ export function CategoriesClient() {
 
   async function handleConfirmDelete() {
     if (!deleteInfo) return;
+    if (blockIfDemo()) return;
     try {
       await deleteCategory.mutateAsync(deleteInfo.categoryId);
       if (expandedId === deleteInfo.categoryId) setExpandedId(null);
@@ -240,6 +243,7 @@ export function CategoriesClient() {
   }
 
   async function handleDeleteMission(missionId: string, categoryId: string) {
+    if (blockIfDemo()) return;
     try {
       await deleteMission.mutateAsync({ missionId, categoryId });
       toast.success("미션이 삭제됐습니다.");
@@ -250,6 +254,7 @@ export function CategoriesClient() {
 
   const handleGenerateMissions = useCallback(
     async (categoryId: string, categoryName: string) => {
+      if (blockIfDemo()) return;
       setGeneratingCategoryId(categoryId);
       setGenerateModal({ open: true, label: `${categoryName} 미션 생성`, logs: [], done: false });
 

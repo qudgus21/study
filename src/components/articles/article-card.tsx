@@ -2,6 +2,7 @@
 
 import { ExternalLink, Bookmark, BookmarkCheck, Trash2, Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
+import { blockIfDemo } from "@/lib/demo-mode";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -29,6 +30,7 @@ export function ArticleCard({ article }: ArticleCardProps) {
 
   function handleToggleRead(e: React.MouseEvent) {
     e.stopPropagation();
+    if (blockIfDemo()) return;
     const next = !article.is_read;
     updateArticle.mutate(
       { id: article.id, changes: { is_read: next } },
@@ -38,6 +40,7 @@ export function ArticleCard({ article }: ArticleCardProps) {
 
   function handleToggleBookmark(e: React.MouseEvent) {
     e.stopPropagation();
+    if (blockIfDemo()) return;
     updateArticle.mutate({
       id: article.id,
       changes: { is_bookmarked: !article.is_bookmarked },
@@ -46,6 +49,7 @@ export function ArticleCard({ article }: ArticleCardProps) {
 
   function handleDelete(e: React.MouseEvent) {
     e.stopPropagation();
+    if (blockIfDemo()) return;
     deleteArticle.mutate(article.id, {
       onError: () => toast.error("삭제에 실패했습니다."),
     });

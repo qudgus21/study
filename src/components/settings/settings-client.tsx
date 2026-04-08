@@ -14,6 +14,7 @@ import {
   Plus,
 } from "lucide-react";
 import { toast } from "sonner";
+import { blockIfDemo } from "@/lib/demo-mode";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -138,6 +139,7 @@ export function SettingsClient() {
 
   async function handleSave() {
     if (!settings) return;
+    if (blockIfDemo()) return;
     try {
       await saveSettings.mutateAsync(settings);
       toast.success("설정이 저장됐습니다.");
@@ -147,6 +149,7 @@ export function SettingsClient() {
   }
 
   async function handleGenerateCategories(gen: (typeof CATEGORY_GENERATORS)[number]) {
+    if (blockIfDemo()) return;
     setGeneratingType(gen.key);
     setCollectModal({ open: true, label: gen.label, logs: [], done: false });
 
@@ -215,6 +218,7 @@ export function SettingsClient() {
   }
 
   async function handleCollect(collector: (typeof DATA_COLLECTORS)[number]) {
+    if (blockIfDemo()) return;
     setCollectingKey(collector.key);
     setCollectModal({ open: true, label: collector.label, logs: [], done: false });
 

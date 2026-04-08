@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Search } from "lucide-react";
 import { toast } from "sonner";
+import { blockIfDemo } from "@/lib/demo-mode";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { MissionCard } from "@/components/missions/mission-card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -17,6 +18,7 @@ export function MissionListClient() {
   const [search, setSearch] = useState("");
 
   function handleDelete(missionId: string) {
+    if (blockIfDemo()) return;
     deleteMission.mutate(missionId, {
       onSuccess: () => toast.success("미션이 삭제됐습니다."),
       onError: () => toast.error("미션 삭제에 실패했습니다."),

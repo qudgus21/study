@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
+import { blockIfDemo } from "@/lib/demo-mode";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -270,6 +271,7 @@ export function MissionDetailClient({ missionId }: { missionId: string }) {
   );
 
   const startEvaluation = useCallback(async () => {
+    if (blockIfDemo()) return;
     if (!mission || !draftAnswer.trim()) {
       toast.error("답변을 먼저 작성해주세요.");
       return;
