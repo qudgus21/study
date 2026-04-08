@@ -568,7 +568,7 @@ export function SettingsClient() {
             <div className="mb-3 flex items-center gap-2">
               {!collectModal.done && <RefreshCw className="h-4 w-4 animate-spin" />}
               <p className="text-sm font-medium">
-                {collectModal.label} {collectModal.done ? "완료" : "수집 중..."}
+                {collectModal.label} {collectModal.done ? "생성 완료" : "생성 중..."}
               </p>
             </div>
             <div
