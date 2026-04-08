@@ -59,9 +59,17 @@
 | JD 분석  | 채용공고 스킬 트렌드, AI 인사이트               |
 | 설정     | 카테고리 생성, 데이터 수집, 통과 기준 점수 설정 |
 
+## AI 동작 방식
+
+이 프로젝트의 AI 기능(미션 평가, 카테고리 생성, 아티클 필터링, JD 인사이트 분석)은 **로컬에 설치된 Claude Code CLI를 `child_process.spawn`으로 실행**하는 방식입니다.
+
+- API 키나 외부 AI 서비스를 호출하지 않습니다
+- 서버(Next.js API Route)에서 `claude` CLI를 자식 프로세스로 띄우고, 출력을 SSE 스트리밍으로 클라이언트에 전달합니다
+- 따라서 **로컬 환경에서만** AI 기능이 동작하며, [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code) 설치와 인증이 필요합니다
+
 ## 기술 스택
 
-Next.js 16 / React 19 / TypeScript / Supabase / TanStack React Query / Zustand / Tailwind CSS v4 / shadcn/ui / Claude AI / Vitest / Playwright
+Next.js 16 / React 19 / TypeScript / Supabase / TanStack React Query / Zustand / Tailwind CSS v4 / shadcn/ui / Claude Code CLI / Vitest / Playwright
 
 ## 로컬 설치
 
