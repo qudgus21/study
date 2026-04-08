@@ -1,4 +1,4 @@
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "./keys";
 import type { MissionType } from "@/lib/agents";
 
@@ -19,6 +19,7 @@ export interface MissionDetail {
   title: string;
   description: string | null;
   codeSnippet: string | null;
+  referenceContent: string | null;
   categoryName: string;
   attempts: Array<{
     id: string;
@@ -70,6 +71,7 @@ export function useMission(missionId: string) {
         title: data.title ?? data.topic_title ?? "",
         description: data.description ?? data.topic_description ?? null,
         codeSnippet: data.code_snippet ?? null,
+        referenceContent: data.reference_content ?? null,
         categoryName: data.category_name ?? "기타",
         attempts: (data.attempts ?? []).map((a: Record<string, unknown>) => ({
           id: a.id,
@@ -91,4 +93,33 @@ export function useInvalidateMission() {
     queryClient.invalidateQueries({ queryKey: queryKeys.missions.all });
     queryClient.invalidateQueries({ queryKey: queryKeys.dashboard });
   };
+}
+
+export function useDeleteMissionFromList() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (missionId: string) => {
+      const res = await fetch(`/api/missions/${missionId}`, { method: "DELETE" });
+      if (!res.ok) throw new Error("Failed to delete mission");
+    },
+    onMutate: async (missionId) => {
+      await queryClient.cancelQueries({ queryKey: queryKeys.missions.all });
+      const previous = queryClient.getQueryData<MissionCardData[]>(queryKeys.missions.all);
+      queryClient.setQueryData<MissionCardData[]>(queryKeys.missions.all, (old) =>
+        old?.filter((m) => m.id !== missionId),
+      );
+      return { previous };
+    },
+    onError: (_err, _id, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(queryKeys.missions.all, context.previous);
+      }
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.missions.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.categories.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.dashboard });
+    },
+  });
 }

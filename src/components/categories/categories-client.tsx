@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import {
   Plus,
   Trash2,
@@ -29,13 +29,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { useQueryClient } from "@tanstack/react-query";
+import { queryKeys } from "@/lib/queries/keys";
 import {
   useCategories,
   useCategoryMissions,
   useCreateCategory,
   useDeleteCategory,
   useDeleteMission,
-  useGenerateMissions,
   type CategoryData,
 } from "@/lib/queries/use-categories";
 
@@ -96,10 +97,10 @@ type SourceFilter = "" | "ai" | "jd" | "article" | "manual";
 
 export function CategoriesClient() {
   const { data: categories = [], isLoading } = useCategories();
+  const queryClient = useQueryClient();
   const createCategory = useCreateCategory();
   const deleteCategory = useDeleteCategory();
   const deleteMission = useDeleteMission();
-  const generateMissions = useGenerateMissions();
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState<NewCategoryForm>(emptyForm);
 
@@ -110,6 +111,14 @@ export function CategoriesClient() {
 
   // 미션 생성
   const [missionCount, setMissionCount] = useState(3);
+  const [generatingCategoryId, setGeneratingCategoryId] = useState<string | null>(null);
+  const [generateModal, setGenerateModal] = useState<{
+    open: boolean;
+    label: string;
+    logs: string[];
+    done: boolean;
+  }>({ open: false, label: "", logs: [], done: false });
+  const modalLogsRef = useRef<HTMLDivElement>(null);
 
   // 삭제 확인 모달
   const [deleteInfo, setDeleteInfo] = useState<DeleteInfo | null>(null);
@@ -130,6 +139,13 @@ export function CategoriesClient() {
     document.addEventListener("mousedown", handleClick);
     return () => document.removeEventListener("mousedown", handleClick);
   }, []);
+
+  // 모달 로그 자동 스크롤
+  useEffect(() => {
+    if (modalLogsRef.current) {
+      modalLogsRef.current.scrollTop = modalLogsRef.current.scrollHeight;
+    }
+  }, [generateModal.logs]);
 
   const filtered = sourceFilter
     ? categories.filter((c) => c.source_type === sourceFilter)
@@ -223,13 +239,72 @@ export function CategoriesClient() {
     }
   }
 
-  async function handleGenerateMissions(categoryId: string) {
-    try {
-      const data = await generateMissions.mutateAsync({ categoryId, count: missionCount });
-      toast.success(`${data.created}개 미션 생성 완료`);
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "미션 생성에 실패했습니다.");
-    }
+  const handleGenerateMissions = useCallback(
+    async (categoryId: string, categoryName: string) => {
+      setGeneratingCategoryId(categoryId);
+      setGenerateModal({ open: true, label: `${categoryName} 미션 생성`, logs: [], done: false });
+
+      try {
+        const res = await fetch(`/api/categories/${categoryId}/missions`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ count: missionCount }),
+        });
+
+        const reader = res.body?.getReader();
+        if (!reader) throw new Error("No reader");
+
+        const decoder = new TextDecoder();
+        let buffer = "";
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split("\n");
+          buffer = lines.pop() ?? "";
+
+          for (const line of lines) {
+            if (!line.startsWith("data: ")) continue;
+            try {
+              const data = JSON.parse(line.slice(6)) as Record<string, unknown>;
+              const log = formatMissionSSEEvent(data);
+              if (log) {
+                setGenerateModal((prev) => ({
+                  ...prev,
+                  logs: [...prev.logs, log],
+                  done: data.type === "done",
+                }));
+              }
+            } catch {
+              /* skip */
+            }
+          }
+        }
+
+        queryClient.invalidateQueries({ queryKey: queryKeys.categories.missions(categoryId) });
+        queryClient.invalidateQueries({ queryKey: queryKeys.missions.all });
+        queryClient.invalidateQueries({ queryKey: queryKeys.dashboard });
+      } catch {
+        setGenerateModal((prev) => ({
+          ...prev,
+          logs: [...prev.logs, "미션 생성 실패"],
+          done: true,
+        }));
+      } finally {
+        setGeneratingCategoryId(null);
+      }
+    },
+    [missionCount, queryClient],
+  );
+
+  function formatMissionSSEEvent(data: Record<string, unknown>): string | null {
+    if (data.type === "log") return data.message as string;
+    if (data.type === "saved") return `  ✓ ${data.title} (${data.mission_type})`;
+    if (data.type === "done") return `완료: ${data.created}개 미션 생성`;
+    if (data.type === "error") return `오류: ${data.message}`;
+    return null;
   }
 
   return (
@@ -395,10 +470,8 @@ export function CategoriesClient() {
               onToggle={() => handleToggle(cat.id)}
               onDeleteClick={() => handleDeleteClick(cat.id, cat.name)}
               onDeleteMission={handleDeleteMission}
-              onGenerateMissions={() => handleGenerateMissions(cat.id)}
-              isGenerating={
-                generateMissions.isPending && generateMissions.variables?.categoryId === cat.id
-              }
+              onGenerateMissions={() => handleGenerateMissions(cat.id, cat.name)}
+              isGenerating={generatingCategoryId === cat.id}
               missionCount={missionCount}
               onMissionCountChange={setMissionCount}
             />
@@ -406,6 +479,47 @@ export function CategoriesClient() {
 
           {/* 페이지네이션 */}
           {totalPages > 1 && <Pagination page={page} totalPages={totalPages} onPage={goToPage} />}
+        </div>
+      )}
+
+      {/* 미션 생성 모달 */}
+      {generateModal.open && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div
+            className="bg-background/50 absolute inset-0"
+            onClick={() => generateModal.done && setGenerateModal((p) => ({ ...p, open: false }))}
+          />
+          <div className="bg-card border-border relative w-full max-w-md rounded-lg border p-5 shadow-lg">
+            <div className="mb-3 flex items-center gap-2">
+              {!generateModal.done && <RefreshCw className="h-4 w-4 animate-spin" />}
+              <p className="text-sm font-medium">
+                {generateModal.label} {generateModal.done ? "완료" : "중..."}
+              </p>
+            </div>
+            <div
+              ref={modalLogsRef}
+              className="bg-muted max-h-60 space-y-0.5 overflow-y-auto rounded-md p-3"
+            >
+              {generateModal.logs.map((log, i) => (
+                <p key={i} className="text-muted-foreground text-xs">
+                  {log}
+                </p>
+              ))}
+              {generateModal.logs.length === 0 && (
+                <p className="text-muted-foreground text-xs">준비 중...</p>
+              )}
+            </div>
+            {generateModal.done && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="mt-3 w-full"
+                onClick={() => setGenerateModal((p) => ({ ...p, open: false }))}
+              >
+                닫기
+              </Button>
+            )}
+          </div>
         </div>
       )}
     </div>

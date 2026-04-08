@@ -156,25 +156,3 @@ export function useDeleteMission() {
     },
   });
 }
-
-export function useGenerateMissions() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async ({ categoryId, count }: { categoryId: string; count: number }) => {
-      const res = await fetch(`/api/categories/${categoryId}/missions`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ count }),
-      });
-      const data = await res.json();
-      if (data.error) throw new Error(data.error);
-      return data as { created: number };
-    },
-    onSuccess: (_data, { categoryId }) => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.categories.missions(categoryId) });
-      queryClient.invalidateQueries({ queryKey: queryKeys.missions.all });
-      queryClient.invalidateQueries({ queryKey: queryKeys.dashboard });
-    },
-  });
-}

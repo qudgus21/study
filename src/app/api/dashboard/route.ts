@@ -72,6 +72,21 @@ export async function GET() {
     const totalMissions = missions.length;
     const completedMissions = missions.filter((m) => m.status === "passed").length;
 
+    // 6. 아티클 통계
+    const { count: totalArticles } = await supabase
+      .from("articles")
+      .select("*", { count: "exact", head: true });
+
+    const { count: readArticles } = await supabase
+      .from("articles")
+      .select("*", { count: "exact", head: true })
+      .eq("is_read", true);
+
+    // 7. 카테고리 수
+    const { count: totalCategories } = await supabase
+      .from("categories")
+      .select("*", { count: "exact", head: true });
+
     return NextResponse.json({
       progress,
       streak,
@@ -79,6 +94,9 @@ export async function GET() {
       weakAreas,
       totalMissions,
       completedMissions,
+      totalArticles: totalArticles ?? 0,
+      readArticles: readArticles ?? 0,
+      totalCategories: totalCategories ?? 0,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";

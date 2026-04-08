@@ -18,6 +18,9 @@ export interface DashboardData {
   }>;
   totalMissions: number;
   completedMissions: number;
+  totalArticles: number;
+  readArticles: number;
+  totalCategories: number;
 }
 
 export function useDashboard() {

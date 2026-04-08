@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { BookOpen, MessageSquare, Code, ArrowRight } from "lucide-react";
+import { BookOpen, MessageSquare, Code, ArrowRight, Trash2 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -29,15 +29,21 @@ const statusConfig = {
   failed: { label: "실패", color: "bg-red-500/10 text-red-600" },
 };
 
-export function MissionCard({ mission }: { mission: MissionCardData }) {
+export function MissionCard({
+  mission,
+  onDelete,
+}: {
+  mission: MissionCardData;
+  onDelete?: (id: string) => void;
+}) {
   const type = typeConfig[mission.missionType];
   const status = statusConfig[mission.status];
   const Icon = type.icon;
 
   return (
-    <Link href={`/missions/${mission.id}`}>
-      <Card className="hover:border-primary/30 transition-colors">
-        <CardContent className="flex items-center gap-4 p-4">
+    <Card className="hover:border-primary/30 transition-colors">
+      <CardContent className="flex items-center gap-4 p-4">
+        <Link href={`/missions/${mission.id}`} className="flex min-w-0 flex-1 items-center gap-4">
           <div
             className={cn(
               "flex h-10 w-10 shrink-0 items-center justify-center rounded-lg",
@@ -71,8 +77,20 @@ export function MissionCard({ mission }: { mission: MissionCardData }) {
           </div>
 
           <ArrowRight className="text-muted-foreground h-4 w-4 shrink-0" />
-        </CardContent>
-      </Card>
-    </Link>
+        </Link>
+
+        {onDelete && (
+          <button
+            onClick={(e) => {
+              e.preventDefault();
+              onDelete(mission.id);
+            }}
+            className="text-muted-foreground hover:text-destructive shrink-0 cursor-pointer p-1 transition-colors"
+          >
+            <Trash2 className="h-4 w-4" />
+          </button>
+        )}
+      </CardContent>
+    </Card>
   );
 }

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase/client";
 import { spawnClaude, parseStreamOutput } from "@/lib/evaluate/claude-runner";
+import { createSSEStream } from "@/lib/categories/sse";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -43,89 +44,114 @@ export async function GET(_request: NextRequest, { params }: Params) {
 
 /**
  * POST /api/categories/[id]/missions
- * AI로 카테고리에 맞는 미션을 생성한다.
+ * AI로 카테고리에 맞는 미션을 생성한다 (SSE 스트림).
  * body: { count: number } (1~10, 기본 3)
  */
 export async function POST(request: NextRequest, { params }: Params) {
-  try {
-    const { id } = await params;
-    const body = await request.json();
-    const count = Math.min(Math.max(Number(body.count) || 3, 1), 10);
+  const { send, close, response } = createSSEStream();
 
-    // 카테고리 조회
-    const { data: category, error: catError } = await supabase
-      .from("categories")
-      .select("*")
-      .eq("id", id)
-      .single();
+  (async () => {
+    try {
+      const { id } = await params;
+      const body = await request.json();
+      const count = Math.min(Math.max(Number(body.count) || 3, 1), 10);
 
-    if (catError || !category) {
-      return NextResponse.json({ error: "Category not found" }, { status: 404 });
-    }
+      send({ type: "log", message: "카테고리 정보 조회 중..." });
 
-    const categoryName = category.name as string;
-    const categoryDescription = (category.description as string) ?? "";
+      const { data: category, error: catError } = await supabase
+        .from("categories")
+        .select("*")
+        .eq("id", id)
+        .single();
 
-    // 기존 미션 제목 조회 (중복 방지)
-    const { data: existingData } = await supabase
-      .from("missions")
-      .select("title")
-      .eq("category_id", id);
-
-    const existingTitles = (existingData ?? []).map((d) => d.title as string);
-
-    const prompt = buildMissionPrompt(categoryName, categoryDescription, count, existingTitles);
-
-    const proc = spawnClaude({
-      agentName: "default",
-      prompt,
-      timeoutMs: 180_000,
-    });
-
-    let fullText = "";
-    for await (const event of parseStreamOutput(proc, 180_000)) {
-      if (event.type === "text" && event.content) {
-        fullText += event.content;
+      if (catError || !category) {
+        send({ type: "error", message: "카테고리를 찾을 수 없습니다." });
+        return;
       }
-      if (event.type === "error") {
-        return NextResponse.json({ error: event.message }, { status: 500 });
+
+      const categoryName = category.name as string;
+      const categoryDescription = (category.description as string) ?? "";
+
+      const { data: existingData } = await supabase
+        .from("missions")
+        .select("title")
+        .eq("category_id", id);
+
+      const existingTitles = (existingData ?? []).map((d) => d.title as string);
+
+      send({ type: "log", message: `"${categoryName}" 카테고리에서 ${count}개 미션 생성 중...` });
+
+      const prompt = buildMissionPrompt(categoryName, categoryDescription, count, existingTitles);
+
+      const proc = spawnClaude({
+        agentName: "default",
+        prompt,
+        timeoutMs: 180_000,
+      });
+
+      let fullText = "";
+      for await (const event of parseStreamOutput(proc, 180_000)) {
+        if (event.type === "text" && event.content) {
+          fullText += event.content;
+        }
+        if (event.type === "error") {
+          send({ type: "error", message: event.message ?? "AI 생성 실패" });
+          return;
+        }
       }
+
+      const missions = parseMissionsFromResponse(fullText);
+      if (missions.length === 0) {
+        send({ type: "error", message: "AI 응답에서 미션을 파싱할 수 없습니다." });
+        return;
+      }
+
+      send({ type: "log", message: `${missions.length}개 미션 파싱 완료. 저장 중...` });
+
+      const now = new Date().toISOString();
+      let savedCount = 0;
+
+      for (const mission of missions.slice(0, count)) {
+        const toInsert: Record<string, unknown> = {
+          category_id: id,
+          category_name: categoryName,
+          mission_type: mission.mission_type,
+          title: mission.title,
+          description: mission.description ?? null,
+          code_snippet: mission.code_snippet ?? null,
+          reference_content: mission.reference_content ?? null,
+          status: "pending",
+          created_at: now,
+          completed_at: null,
+        };
+
+        let { error: insertError } = await supabase.from("missions").insert(toInsert);
+
+        // reference_content 컬럼이 없으면 제외하고 재시도
+        if (insertError?.message?.includes("reference_content")) {
+          delete toInsert.reference_content;
+          ({ error: insertError } = await supabase.from("missions").insert(toInsert));
+        }
+
+        if (insertError) {
+          send({ type: "log", message: `  ✗ 저장 실패: ${mission.title}` });
+        } else {
+          savedCount++;
+          send({ type: "saved", title: mission.title, mission_type: mission.mission_type });
+        }
+      }
+
+      send({ type: "done", created: savedCount });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown error";
+      console.error("generate missions error:", message);
+      send({ type: "error", message });
+    } finally {
+      close();
     }
+  })();
 
-    const missions = parseMissionsFromResponse(fullText);
-    if (missions.length === 0) {
-      return NextResponse.json(
-        { error: "AI 응답에서 미션을 파싱할 수 없습니다." },
-        { status: 500 },
-      );
-    }
-
-    const now = new Date().toISOString();
-    const toInsert = missions.slice(0, count).map((mission) => ({
-      category_id: id,
-      category_name: categoryName,
-      mission_type: mission.mission_type,
-      title: mission.title,
-      description: mission.description ?? null,
-      code_snippet: mission.code_snippet ?? null,
-      status: "pending",
-      created_at: now,
-      completed_at: null,
-    }));
-
-    const { data: inserted, error: insertError } = await supabase
-      .from("missions")
-      .insert(toInsert)
-      .select("id, title, mission_type");
-
-    if (insertError) throw insertError;
-
-    return NextResponse.json({ ok: true, created: inserted?.length ?? 0, missions: inserted });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown error";
-    console.error("generate missions error:", message);
-    return NextResponse.json({ error: message }, { status: 500 });
-  }
+  return response;
 }
 
 function buildMissionPrompt(
@@ -194,7 +220,8 @@ function buildMissionPrompt(
     "title": "구체적이고 날카로운 미션 제목",
     "description": "2-3문장. 이 미션에서 무엇을 답변/구현해야 하는지, 어떤 깊이를 기대하는지 구체적으로 설명.",
     "mission_type": "concept | discussion | code",
-    "code_snippet": "code 타입인 경우에만. 리뷰/리팩토링할 실제 코드. 다른 타입이면 null"
+    "code_snippet": "code 타입인 경우에만. 리뷰/리팩토링할 실제 코드. 다른 타입이면 null",
+    "reference_content": "마크다운 형식의 참고 자료. 아래 구조를 따를 것:\\n## 참고글\\n이 미션 주제에 대한 1000자 내외의 한글 설명 (배경, 핵심 원리, 실무 적용 사례 포함)\\n## 핵심 개념\\n- 개념1: 설명\\n- 개념2: 설명\\n## 치트시트\\n면접/실무에서 바로 쓸 수 있는 요약 정보 (코드 예시 포함 가능)"
   }
 ]
 \`\`\``;
@@ -205,6 +232,7 @@ function parseMissionsFromResponse(text: string): Array<{
   description: string;
   mission_type: "concept" | "discussion" | "code";
   code_snippet?: string;
+  reference_content?: string;
 }> {
   const jsonMatch = text.match(/\[[\s\S]*\]/);
   if (!jsonMatch) return [];

@@ -1,16 +1,25 @@
 "use client";
 
 import { useState } from "react";
+import { toast } from "sonner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { MissionCard } from "@/components/missions/mission-card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useMissions } from "@/lib/queries/use-missions";
+import { useMissions, useDeleteMissionFromList } from "@/lib/queries/use-missions";
 
 type FilterType = "all" | "concept" | "discussion" | "code";
 
 export function MissionListClient() {
   const { data: missions = [], isLoading } = useMissions();
+  const deleteMission = useDeleteMissionFromList();
   const [filter, setFilter] = useState<FilterType>("all");
+
+  function handleDelete(missionId: string) {
+    deleteMission.mutate(missionId, {
+      onSuccess: () => toast.success("미션이 삭제됐습니다."),
+      onError: () => toast.error("미션 삭제에 실패했습니다."),
+    });
+  }
 
   const filtered = filter === "all" ? missions : missions.filter((m) => m.missionType === filter);
 
@@ -65,7 +74,9 @@ export function MissionListClient() {
               <p className="text-xs">카테고리에서 미션을 생성해보세요.</p>
             </div>
           ) : (
-            filtered.map((mission) => <MissionCard key={mission.id} mission={mission} />)
+            filtered.map((mission) => (
+              <MissionCard key={mission.id} mission={mission} onDelete={handleDelete} />
+            ))
           )}
         </TabsContent>
       </Tabs>

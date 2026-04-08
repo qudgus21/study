@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, BookOpen, MessageSquare, Code, Users } from "lucide-react";
+import { ArrowLeft, BookOpen, MessageSquare, Code, Users, Lightbulb, X } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -216,6 +216,8 @@ export function MissionDetailClient({ missionId }: { missionId: string }) {
     saveAttempt,
   ]);
 
+  const [referenceOpen, setReferenceOpen] = useState(false);
+
   const handleRetry = () => {
     resetForRetry();
   };
@@ -244,11 +246,22 @@ export function MissionDetailClient({ missionId }: { missionId: string }) {
             <ArrowLeft className="h-4 w-4" />
           </Button>
         </Link>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-1 items-center gap-2">
           <Icon className="h-5 w-5" />
           <Badge variant="outline">{typeLabels[mission.missionType]}</Badge>
           <Badge variant="outline">{mission.categoryName}</Badge>
         </div>
+        {mission.referenceContent && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-1.5"
+            onClick={() => setReferenceOpen(true)}
+          >
+            <Lightbulb className="h-3.5 w-3.5" />
+            참고자료
+          </Button>
+        )}
       </div>
 
       {/* 질문 */}
@@ -368,6 +381,45 @@ export function MissionDetailClient({ missionId }: { missionId: string }) {
           )}
         </TabsContent>
       </Tabs>
+
+      {/* 참고자료 슬라이드 패널 */}
+      {mission.referenceContent && (
+        <>
+          {/* 백드롭 */}
+          {referenceOpen && (
+            <div
+              className="fixed inset-0 z-40 bg-black/30"
+              onClick={() => setReferenceOpen(false)}
+            />
+          )}
+          {/* 패널 */}
+          <div
+            className={`bg-card border-border fixed top-0 right-0 z-50 h-full w-full max-w-md border-l shadow-lg transition-transform duration-300 ${
+              referenceOpen ? "translate-x-0" : "translate-x-full"
+            }`}
+          >
+            <div className="flex h-full flex-col">
+              <div className="flex items-center justify-between border-b px-4 py-3">
+                <div className="flex items-center gap-2">
+                  <Lightbulb className="h-4 w-4" />
+                  <span className="text-sm font-medium">참고자료</span>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7"
+                  onClick={() => setReferenceOpen(false)}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+              <div className="flex-1 overflow-y-auto px-4 py-4">
+                <MarkdownContent>{mission.referenceContent}</MarkdownContent>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }
