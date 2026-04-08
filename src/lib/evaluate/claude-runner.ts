@@ -112,7 +112,10 @@ export async function* parseStreamOutput(
 
       if (result === "timeout") {
         process.kill("SIGTERM");
-        yield { type: "error", message: "평가 시간이 초과되었습니다 (120초)" };
+        yield {
+          type: "error",
+          message: `평가 시간이 초과되었습니다 (${Math.round(timeoutMs / 1000)}초)`,
+        };
         if (fullText) {
           yield { type: "done", fullText, sessionId: sessionId ?? undefined };
         }

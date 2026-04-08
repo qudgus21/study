@@ -86,7 +86,7 @@ export async function POST(request: NextRequest, { params }: Params) {
       const proc = spawnClaude({
         agentName: "default",
         prompt,
-        timeoutMs: 300_000,
+        timeoutMs: 600_000,
         allowedTools: ["WebSearch"],
       });
 
@@ -100,7 +100,7 @@ export async function POST(request: NextRequest, { params }: Params) {
         }
       }, 8000);
 
-      for await (const event of parseStreamOutput(proc, 300_000)) {
+      for await (const event of parseStreamOutput(proc, 600_000)) {
         if (event.type === "text" && event.content) {
           fullText += event.content;
 

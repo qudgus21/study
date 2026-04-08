@@ -1,26 +1,17 @@
 "use client";
 
-import {
-  Flame,
-  Target,
-  TrendingUp,
-  BookOpen,
-  FolderOpen,
-  CheckCircle2,
-  BookMarked,
-} from "lucide-react";
+import { Flame, Target, TrendingUp, BookOpen, FolderOpen, CheckCircle2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ProgressRing } from "./progress-ring";
 import { RadarChart } from "./radar-chart";
 import { useDashboard } from "@/lib/queries/use-dashboard";
 
 type MissionType = "concept" | "discussion" | "code";
 
-const typeConfig: Record<MissionType, { label: string; color: string }> = {
-  concept: { label: "개념", color: "#3b82f6" },
-  discussion: { label: "토론", color: "#a855f7" },
-  code: { label: "코드", color: "#22c55e" },
+const typeConfig: Record<MissionType, { label: string; color: string; bg: string }> = {
+  concept: { label: "개념", color: "text-blue-500", bg: "bg-blue-500/10" },
+  discussion: { label: "토론", color: "text-violet-500", bg: "bg-violet-500/10" },
+  code: { label: "코드", color: "text-emerald-500", bg: "bg-emerald-500/10" },
 };
 
 export function DashboardClient() {
@@ -29,12 +20,12 @@ export function DashboardClient() {
   if (isLoading) {
     return (
       <div className="space-y-4">
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-          {Array.from({ length: 4 }).map((_, i) => (
+        <div className="grid grid-cols-3 gap-3">
+          {Array.from({ length: 3 }).map((_, i) => (
             <Skeleton key={i} className="h-24 w-full rounded-xl" />
           ))}
         </div>
-        <Skeleton className="h-48 w-full rounded-xl" />
+        <Skeleton className="h-24 w-full rounded-xl" />
         <Skeleton className="h-64 w-full rounded-xl" />
       </div>
     );
@@ -46,13 +37,12 @@ export function DashboardClient() {
 
   return (
     <div className="space-y-4">
-      {/* 요약 카드 4개 */}
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+      {/* 요약 카드 */}
+      <div className="grid grid-cols-3 gap-3">
         <StatCard
           icon={<BookOpen className="h-4 w-4 text-blue-500" />}
-          label="아티클"
+          label="읽은 아티클"
           value={data.readArticles}
-          sub={`/ ${data.totalArticles}`}
           accent="blue"
         />
         <StatCard
@@ -62,39 +52,34 @@ export function DashboardClient() {
           accent="violet"
         />
         <StatCard
-          icon={<CheckCircle2 className="h-4 w-4 text-emerald-500" />}
-          label="완료 미션"
-          value={data.completedMissions}
-          sub={`/ ${data.totalMissions}`}
-          accent="emerald"
-        />
-        <StatCard
           icon={<Flame className="h-4 w-4 text-orange-500" />}
-          label="스트릭"
+          label="연속 학습"
           value={data.streak}
           sub="일"
           accent="orange"
         />
       </div>
 
-      {/* 미션 종류별 진행률 */}
+      {/* 완료 미션 (카테고리별) */}
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="flex items-center gap-2 text-sm">
-            <BookMarked className="h-4 w-4" />
-            미션 진행률
+            <CheckCircle2 className="h-4 w-4" />
+            완료 미션
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="flex items-center justify-around py-2">
+          <div className="grid grid-cols-3 gap-3">
             {(["concept", "discussion", "code"] as MissionType[]).map((type) => (
-              <ProgressRing
+              <div
                 key={type}
-                passed={data.progress[type].passed}
-                total={data.progress[type].total}
-                label={typeConfig[type].label}
-                color={typeConfig[type].color}
-              />
+                className={`flex flex-col items-center rounded-lg ${typeConfig[type].bg} py-3`}
+              >
+                <span className={`text-2xl font-bold ${typeConfig[type].color}`}>
+                  {data.progress[type].passed}
+                </span>
+                <span className="text-muted-foreground text-xs">{typeConfig[type].label}</span>
+              </div>
             ))}
           </div>
         </CardContent>
@@ -143,23 +128,20 @@ function StatCard({
   const bgMap: Record<string, string> = {
     blue: "bg-blue-500/10",
     violet: "bg-violet-500/10",
-    emerald: "bg-emerald-500/10",
     orange: "bg-orange-500/10",
   };
 
   return (
     <Card className="border-0 shadow-sm">
-      <CardContent className="flex flex-col gap-2 p-4">
+      <CardContent className="flex flex-col items-center gap-1 p-4">
         <div className={`flex h-8 w-8 items-center justify-center rounded-lg ${bgMap[accent]}`}>
           {icon}
         </div>
-        <div>
-          <div className="flex items-baseline gap-0.5">
-            <span className="text-2xl font-bold tracking-tight">{value}</span>
-            {sub && <span className="text-muted-foreground text-sm">{sub}</span>}
-          </div>
-          <p className="text-muted-foreground text-xs">{label}</p>
+        <div className="flex items-baseline gap-0.5">
+          <span className="text-2xl font-bold tracking-tight">{value}</span>
+          {sub && <span className="text-muted-foreground text-sm">{sub}</span>}
         </div>
+        <p className="text-muted-foreground text-xs">{label}</p>
       </CardContent>
     </Card>
   );
