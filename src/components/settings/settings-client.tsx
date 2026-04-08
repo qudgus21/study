@@ -5,7 +5,6 @@ import {
   RefreshCw,
   Play,
   Sparkles,
-  BarChart3,
   Newspaper,
   Rss,
   Briefcase,
@@ -38,13 +37,6 @@ const CATEGORY_GENERATORS = [
     description: "수집된 아티클에서 학습 카테고리 추출",
     icon: Newspaper,
     url: "/api/categories/generate/article",
-  },
-  {
-    key: "jd",
-    label: "JD 갭 분석",
-    description: "시장 요구 vs 내 역량 비교 → RED 스킬 카테고리 생성",
-    icon: BarChart3,
-    url: "/api/categories/generate/jd",
   },
 ] as const;
 
@@ -375,7 +367,7 @@ export function SettingsClient() {
                     생성
                   </Button>
                 </div>
-                {gen.key !== "jd" && <div className="border-border border-t" />}
+                {gen.key !== "article" && <div className="border-border border-t" />}
               </div>
             );
           })}

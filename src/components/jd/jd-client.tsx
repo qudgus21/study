@@ -5,7 +5,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SkillBarChart } from "./skill-bar-chart";
-import { GapAnalysis } from "./gap-analysis";
 import { JdInsights } from "./jd-insights";
 
 interface TrendData {
@@ -34,7 +33,6 @@ export function JdClient() {
         <TabsList>
           <TabsTrigger value="insights">AI 인사이트</TabsTrigger>
           <TabsTrigger value="trends">스킬 트렌드</TabsTrigger>
-          <TabsTrigger value="gap">갭 분석</TabsTrigger>
         </TabsList>
 
         <TabsContent value="trends" className="mt-4 space-y-4">
@@ -81,10 +79,6 @@ export function JdClient() {
 
         <TabsContent value="insights" className="mt-4">
           <JdInsights />
-        </TabsContent>
-
-        <TabsContent value="gap" className="mt-4">
-          <GapAnalysis topSkills={trends?.topSkills ?? []} />
         </TabsContent>
       </Tabs>
     </div>
