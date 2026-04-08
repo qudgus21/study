@@ -220,3 +220,45 @@
   margin-top: 0.5rem;
   margin-bottom: 0.5rem;
 }
+/* 참고자료 패널 내부 스타일 오버라이드 */
+.ref-section-content .markdown-content ul,
+.ref-section-content .markdown-content ol {
+  padding-left: 0;
+  list-style: none;
+}
+.ref-section-content .markdown-content li {
+  position: relative;
+  padding-left: 1rem;
+  margin-top: 0.375rem;
+  margin-bottom: 0.375rem;
+}
+.ref-section-content .markdown-content li::before {
+  content: "•";
+  position: absolute;
+  left: 0;
+  color: var(--muted-foreground);
+  font-weight: bold;
+}
+.ref-section-content .markdown-content > ul > li > strong:first-child,
+.ref-section-content .markdown-content > ul > li > p:first-child > strong:first-child {
+  color: var(--foreground);
+}
+.ref-links-section .markdown-content a {
+  color: var(--foreground);
+  text-decoration: none;
+  font-weight: 500;
+}
+.ref-links-section .markdown-content a:hover {
+  text-decoration: underline;
+}
+.ref-links-section .markdown-content ul {
+  padding-left: 0;
+  list-style: none;
+}
+.ref-links-section .markdown-content li {
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--border);
+}
+.ref-links-section .markdown-content li:last-child {
+  border-bottom: none;
+}

@@ -86,19 +86,44 @@ export async function POST(request: NextRequest, { params }: Params) {
       const proc = spawnClaude({
         agentName: "default",
         prompt,
-        timeoutMs: 180_000,
+        timeoutMs: 300_000,
+        allowedTools: ["WebSearch"],
       });
 
       let fullText = "";
-      for await (const event of parseStreamOutput(proc, 180_000)) {
+      let detectedCount = 0;
+      let lastProgressAt = Date.now();
+      const progressInterval = setInterval(() => {
+        if (Date.now() - lastProgressAt > 8000 && detectedCount === 0) {
+          send({ type: "log", message: "  ⏳ AI가 미션을 작성하고 있습니다..." });
+          lastProgressAt = Date.now();
+        }
+      }, 8000);
+
+      for await (const event of parseStreamOutput(proc, 300_000)) {
         if (event.type === "text" && event.content) {
           fullText += event.content;
+
+          // 미션 객체 완성 감지: "title" 키가 나올 때마다 카운트
+          const titleMatches = fullText.match(/"title"\s*:/g);
+          const currentCount = titleMatches?.length ?? 0;
+          if (currentCount > detectedCount) {
+            detectedCount = currentCount;
+            send({ type: "log", message: `  📝 ${detectedCount}번째 미션 생성 중...` });
+            lastProgressAt = Date.now();
+          }
+        }
+        if (event.type === "tool_use" && event.toolName === "WebSearch") {
+          send({ type: "log", message: "  🔍 참고글 검색 중..." });
+          lastProgressAt = Date.now();
         }
         if (event.type === "error") {
+          clearInterval(progressInterval);
           send({ type: "error", message: event.message ?? "AI 생성 실패" });
           return;
         }
       }
+      clearInterval(progressInterval);
 
       const missions = parseMissionsFromResponse(fullText);
       if (missions.length === 0) {
@@ -221,7 +246,7 @@ function buildMissionPrompt(
     "description": "2-3문장. 이 미션에서 무엇을 답변/구현해야 하는지, 어떤 깊이를 기대하는지 구체적으로 설명.",
     "mission_type": "concept | discussion | code",
     "code_snippet": "code 타입인 경우에만. 리뷰/리팩토링할 실제 코드. 다른 타입이면 null",
-    "reference_content": "마크다운 형식의 참고 자료. 아래 구조를 따를 것:\\n## 참고글\\n이 미션 주제에 대한 1000자 내외의 한글 설명 (배경, 핵심 원리, 실무 적용 사례 포함)\\n## 핵심 개념\\n- 개념1: 설명\\n- 개념2: 설명\\n## 치트시트\\n면접/실무에서 바로 쓸 수 있는 요약 정보 (코드 예시 포함 가능)"
+    "reference_content": "마크다운 형식의 참고 자료. 아래 구조를 따를 것:\\n## 상세 해설\\n이 미션 주제에 대한 1000자 내외의 한글 해설 (배경, 핵심 원리, 동작 방식, 실무 적용 사례 포함)\\n## 핵심 개념\\n- 개념1: 설명\\n- 개념2: 설명\\n(면접/실무에서 바로 쓸 수 있는 요약. 코드 예시 포함 가능)\\n## 참고글\\n- [글 제목](URL) — 간단한 설명\\n- [글 제목](URL) — 간단한 설명\\n(반드시 WebSearch 도구로 검색하여 실제 존재하는 한국어 글 2~4개를 포함할 것. 블로그, 공식 문서 한국어판 등)"
   }
 ]
 \`\`\``;

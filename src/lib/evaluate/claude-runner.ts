@@ -1,11 +1,12 @@
 import { spawn, type ChildProcess } from "child_process";
 
 export interface StreamEvent {
-  type: "text" | "session" | "done" | "error";
+  type: "text" | "session" | "done" | "error" | "tool_use";
   content?: string;
   sessionId?: string;
   fullText?: string;
   message?: string;
+  toolName?: string;
 }
 
 interface RunnerOptions {
@@ -14,6 +15,7 @@ interface RunnerOptions {
   sessionId?: string;
   cwd?: string;
   timeoutMs?: number;
+  allowedTools?: string[];
 }
 
 const CLAUDE_BIN = "claude";
@@ -39,6 +41,12 @@ function buildArgs(options: RunnerOptions): string[] {
     "-p",
     options.prompt,
   ];
+
+  if (options.allowedTools?.length) {
+    for (const tool of options.allowedTools) {
+      args.push("--allowedTools", tool);
+    }
+  }
 
   if (options.sessionId) {
     args.unshift("--resume", options.sessionId);
@@ -133,6 +141,9 @@ export async function* parseStreamOutput(
             if (block.type === "text" && block.text) {
               fullText += block.text;
               yield { type: "text", content: block.text };
+            }
+            if (block.type === "tool_use" && block.name) {
+              yield { type: "tool_use", toolName: block.name };
             }
           }
         }

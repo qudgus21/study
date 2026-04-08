@@ -2,7 +2,18 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, BookOpen, MessageSquare, Code, Users, Lightbulb, X } from "lucide-react";
+import {
+  ArrowLeft,
+  BookOpen,
+  MessageSquare,
+  Code,
+  Users,
+  Lightbulb,
+  X,
+  FileText,
+  Zap,
+  ExternalLink,
+} from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -49,6 +60,152 @@ function parseSSEEvents(chunk: string): Array<{ event: string; data: string }> {
   }
 
   return events;
+}
+
+interface ReferenceSection {
+  type: "detail" | "concepts" | "links" | "unknown";
+  title: string;
+  content: string;
+}
+
+function parseReferenceSections(content: string): ReferenceSection[] {
+  const sections: ReferenceSection[] = [];
+  const parts = content.split(/^## /m).filter(Boolean);
+
+  for (const part of parts) {
+    const newlineIdx = part.indexOf("\n");
+    const title = (newlineIdx >= 0 ? part.slice(0, newlineIdx) : part).trim();
+    const body = newlineIdx >= 0 ? part.slice(newlineIdx + 1).trim() : "";
+
+    let type: ReferenceSection["type"] = "unknown";
+    if (/상세\s*해설/.test(title)) type = "detail";
+    else if (/핵심\s*개념/.test(title)) type = "concepts";
+    else if (/참고글|참고\s*자료|레퍼런스/.test(title)) type = "links";
+
+    sections.push({ type, title, content: body });
+  }
+
+  return sections;
+}
+
+function parseLinkItems(content: string): Array<{ title: string; url: string; desc: string }> {
+  const items: Array<{ title: string; url: string; desc: string }> = [];
+  const lines = content.split("\n").filter((l) => l.trim());
+
+  for (const line of lines) {
+    const match = line.match(/\[([^\]]+)\]\(([^)]+)\)(?:\s*[—\-–:]\s*(.*))?/);
+    if (match) {
+      items.push({ title: match[1], url: match[2], desc: match[3]?.trim() ?? "" });
+    }
+  }
+
+  return items;
+}
+
+function ReferencePanelContent({ content }: { content: string }) {
+  const sections = parseReferenceSections(content);
+
+  // fallback: 섹션 파싱이 안 되면 기존 마크다운 렌더링
+  if (sections.length === 0) {
+    return (
+      <div className="p-4">
+        <MarkdownContent>{content}</MarkdownContent>
+      </div>
+    );
+  }
+
+  const sectionIcons = {
+    detail: FileText,
+    concepts: Zap,
+    links: ExternalLink,
+    unknown: BookOpen,
+  };
+
+  const sectionColors = {
+    detail: "border-blue-500/20 bg-blue-500/5",
+    concepts: "border-amber-500/20 bg-amber-500/5",
+    links: "border-emerald-500/20 bg-emerald-500/5",
+    unknown: "border-border bg-muted/30",
+  };
+
+  const iconColors = {
+    detail: "text-blue-500",
+    concepts: "text-amber-500",
+    links: "text-emerald-500",
+    unknown: "text-muted-foreground",
+  };
+
+  return (
+    <div className="space-y-3 p-4">
+      {sections.map((section, i) => {
+        const SectionIcon = sectionIcons[section.type];
+
+        // 참고글 섹션은 링크 카드로 렌더링
+        if (section.type === "links") {
+          const linkItems = parseLinkItems(section.content);
+          return (
+            <div key={i} className={`rounded-lg border ${sectionColors[section.type]} p-4`}>
+              <div className="mb-3 flex items-center gap-2">
+                <SectionIcon className={`h-4 w-4 ${iconColors[section.type]}`} />
+                <h3 className="text-sm font-semibold">{section.title}</h3>
+              </div>
+              {linkItems.length > 0 ? (
+                <div className="space-y-2">
+                  {linkItems.map((item, j) => (
+                    <a
+                      key={j}
+                      href={item.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="border-border/50 hover:border-border hover:bg-card group block rounded-md border bg-white/50 p-3 transition-colors dark:bg-white/5"
+                    >
+                      <div className="flex items-start gap-2">
+                        <ExternalLink className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-500 opacity-60 group-hover:opacity-100" />
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm leading-snug font-medium group-hover:text-emerald-600 dark:group-hover:text-emerald-400">
+                            {item.title}
+                          </p>
+                          {item.desc && (
+                            <p className="text-muted-foreground mt-0.5 text-xs leading-relaxed">
+                              {item.desc}
+                            </p>
+                          )}
+                          <p className="mt-1 truncate text-[11px] text-emerald-600/60">
+                            {item.url
+                              .replace(/^https?:\/\//, "")
+                              .split("/")
+                              .slice(0, 2)
+                              .join("/")}
+                          </p>
+                        </div>
+                      </div>
+                    </a>
+                  ))}
+                </div>
+              ) : (
+                <div className="ref-links-section">
+                  <MarkdownContent>{section.content}</MarkdownContent>
+                </div>
+              )}
+            </div>
+          );
+        }
+
+        // 상세 해설 / 핵심 개념 / 기타
+        return (
+          <div key={i} className={`rounded-lg border ${sectionColors[section.type]} p-4`}>
+            <div className="mb-2 flex items-center gap-2">
+              <SectionIcon className={`h-4 w-4 ${iconColors[section.type]}`} />
+              <h3 className="text-sm font-semibold">{section.title}</h3>
+            </div>
+            <div className="ref-section-content">
+              <MarkdownContent>{section.content}</MarkdownContent>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
 }
 
 export function MissionDetailClient({ missionId }: { missionId: string }) {
@@ -385,14 +542,12 @@ export function MissionDetailClient({ missionId }: { missionId: string }) {
       {/* 참고자료 슬라이드 패널 */}
       {mission.referenceContent && (
         <>
-          {/* 백드롭 */}
           {referenceOpen && (
             <div
               className="fixed inset-0 z-40 bg-black/30"
               onClick={() => setReferenceOpen(false)}
             />
           )}
-          {/* 패널 */}
           <div
             className={`bg-card border-border fixed top-0 right-0 z-50 h-full w-full max-w-md border-l shadow-lg transition-transform duration-300 ${
               referenceOpen ? "translate-x-0" : "translate-x-full"
@@ -413,8 +568,8 @@ export function MissionDetailClient({ missionId }: { missionId: string }) {
                   <X className="h-4 w-4" />
                 </Button>
               </div>
-              <div className="flex-1 overflow-y-auto px-4 py-4">
-                <MarkdownContent>{mission.referenceContent}</MarkdownContent>
+              <div className="flex-1 overflow-y-auto">
+                <ReferencePanelContent content={mission.referenceContent} />
               </div>
             </div>
           </div>
