@@ -1,36 +1,110 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Study — 프론트엔드 학습 도구
 
-## Getting Started
+프론트엔드 개발자를 위한 AI 기반 학습 도구입니다.
+카테고리별 미션(개념 설명, 기술 토론, 코드 챌린지)을 생성하고, AI가 답변을 평가합니다.
 
-First, run the development server:
+## 학습 흐름
+
+### 1. 데이터 수집
+
+설정 페이지에서 외부 데이터를 수집합니다.
+
+- **아티클 수집** — Korean FE Article, 긱뉴스, 요즘IT, 카카오/토스/우아한형제들 기술블로그에서 RSS로 최신 글을 가져옵니다. 키워드 필터 + AI 필터로 프론트엔드 관련 글만 걸러냅니다.
+- **원티드 JD 수집** — 원티드에서 프론트엔드 5년+ 채용공고를 크롤링합니다. 요구 스킬, 역량, 우대사항 등을 AI가 분석해서 시장 트렌드를 정리합니다.
+
+### 2. 카테고리 생성
+
+수집한 데이터를 기반으로 학습 카테고리를 만듭니다. 3가지 방식이 있습니다.
+
+- **AI 자율 생성** — AI가 프론트엔드 학습에 적합한 카테고리를 자율적으로 생성합니다
+- **JD 기반 생성** — 수집한 채용공고의 스킬 트렌드와 인사이트를 분석해서 실제 시장 수요에 맞는 카테고리를 만듭니다
+- **아티클 기반 생성** — 수집한 기술 블로그 글에서 학습할 만한 주제를 추출합니다
+
+기존 카테고리와의 유사도를 자동으로 검증해서 중복 생성을 방지합니다. 수동으로 직접 추가할 수도 있습니다.
+
+### 3. 미션 생성
+
+카테고리 목록에서 원하는 카테고리를 펼치고 "미션 생성" 버튼을 누르면, AI가 해당 카테고리에 맞는 미션을 만듭니다.
+
+- **개념 설명** — "이것을 설명해보세요" 형식. 단순 정의가 아닌 왜, 어떻게, 트레이드오프 수준의 깊이를 요구합니다
+- **기술 토론** — 정답이 없는 의사결정, 비교, 전략 주제. 경험과 판단력이 드러나야 합니다
+- **코드 챌린지** — 실무 시나리오 기반의 코딩/리뷰/리팩토링 과제. 문제 코드가 함께 제공되기도 합니다
+
+각 미션에는 AI가 웹 검색으로 찾은 참고자료(상세 해설, 핵심 개념, 참고글 링크)가 포함됩니다.
+
+### 4. 미션 풀이 및 평가
+
+미션을 선택하면 3단계로 진행됩니다.
+
+1. **답변 작성** — 마크다운 에디터에서 답변을 작성합니다. 이전 시도의 피드백이 있으면 참고할 수 있습니다
+2. **AI 평가** — Claude가 실시간 스트리밍으로 답변을 평가합니다. 점수와 구체적인 피드백을 제공합니다
+3. **결과 확인** — 통과 기준(기본 80점) 이상이면 통과. 미달이면 피드백을 참고해서 재시도할 수 있습니다
+
+### 5. 대시보드
+
+학습 현황을 한눈에 볼 수 있습니다.
+
+- 카테고리별 완료 미션 현황
+- 개념/토론/코드 타입별 통과 수
+- 최근 수집한 아티클과 읽지 않은 글 수
+
+## 페이지 구성
+
+| 페이지   | 설명                                            |
+| -------- | ----------------------------------------------- |
+| 대시보드 | 학습 진행 현황 요약                             |
+| 카테고리 | 카테고리 목록, 미션 생성/관리                   |
+| 미션     | 전체 미션 목록, 타입별 필터                     |
+| 아티클   | 수집한 기술 글 목록, 읽음/북마크 관리           |
+| JD 분석  | 채용공고 스킬 트렌드, AI 인사이트               |
+| 설정     | 카테고리 생성, 데이터 수집, 통과 기준 점수 설정 |
+
+## 기술 스택
+
+Next.js 16 / React 19 / TypeScript / Supabase / TanStack React Query / Zustand / Tailwind CSS v4 / shadcn/ui / Claude AI / Vitest / Playwright
+
+## 로컬 설치
+
+### 1. 클론 및 의존성 설치
+
+```bash
+git clone https://github.com/qudgus21/study.git
+cd study
+npm install
+```
+
+### 2. Supabase 설정
+
+[Supabase](https://supabase.com)에서 프로젝트를 생성하고, SQL Editor에서 테이블을 만들어주세요.
+스키마는 `src/app/api/` 내 각 라우트의 쿼리를 참고하거나, 이슈로 문의해주세요.
+
+### 3. 환경 변수 설정
+
+`.env.local` 파일을 생성합니다.
+
+```env
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+
+NEXT_PUBLIC_DEMO_MODE=false
+```
+
+- Supabase 대시보드 > Settings > API에서 URL과 Service Role Key를 확인할 수 있습니다
+- `NEXT_PUBLIC_DEMO_MODE=true`로 설정하면 읽기 전용 데모 모드로 동작합니다
+
+### 4. 실행
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+http://localhost:3000 에서 확인할 수 있습니다.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## 데모 모드
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+배포된 환경에서는 DB 보호를 위해 데모 모드(읽기 전용)로 운영됩니다.
+직접 사용하려면 위 [로컬 설치](#로컬-설치) 가이드를 따라 본인의 Supabase를 연결하고 `NEXT_PUBLIC_DEMO_MODE=false`로 설정하세요.
 
-## Learn More
+## 라이선스
 
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+MIT
