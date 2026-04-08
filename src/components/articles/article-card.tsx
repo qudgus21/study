@@ -63,16 +63,16 @@ export function ArticleCard({ article, onUpdate }: ArticleCardProps) {
   async function handleGenerateTopic() {
     setLoadingTopic(true);
     try {
-      const res = await fetch(`/api/articles/${article.id}/generate-topic`, {
+      const res = await fetch(`/api/articles/${article.id}/generate-category`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mission_type: "concept" }),
+        body: JSON.stringify({}),
       });
       if (!res.ok) throw new Error("Failed");
       onUpdate(article.id, { topic_generated: true });
-      toast.success("토픽이 생성됐습니다.");
+      toast.success("카테고리가 생성됐습니다.");
     } catch {
-      toast.error("토픽 생성에 실패했습니다.");
+      toast.error("카테고리 생성에 실패했습니다.");
     } finally {
       setLoadingTopic(false);
     }
@@ -135,7 +135,7 @@ export function ArticleCard({ article, onUpdate }: ArticleCardProps) {
               className="h-7 w-7"
               onClick={handleGenerateTopic}
               disabled={loadingTopic || article.topic_generated}
-              title={article.topic_generated ? "토픽 생성됨" : "토픽으로 만들기"}
+              title={article.topic_generated ? "카테고리 생성됨" : "카테고리로 만들기"}
             >
               {article.topic_generated ? (
                 <Check className="h-4 w-4 text-green-500" />

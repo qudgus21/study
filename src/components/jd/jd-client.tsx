@@ -6,6 +6,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SkillBarChart } from "./skill-bar-chart";
 import { GapAnalysis } from "./gap-analysis";
+import { JdInsights } from "./jd-insights";
 
 interface TrendData {
   latestDate: string | null;
@@ -19,8 +20,8 @@ export function JdClient() {
 
   useEffect(() => {
     fetch("/api/jd/trends")
-      .then((r) => r.json())
-      .then(setTrends)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => d && setTrends(d))
       .catch(console.error)
       .finally(() => setLoading(false));
   }, []);
@@ -29,8 +30,9 @@ export function JdClient() {
     <div className="space-y-4">
       <p className="text-muted-foreground text-sm">원티드 프론트엔드 5년+ 포지션 기준</p>
 
-      <Tabs defaultValue="trends">
+      <Tabs defaultValue="insights">
         <TabsList>
+          <TabsTrigger value="insights">AI 인사이트</TabsTrigger>
           <TabsTrigger value="trends">스킬 트렌드</TabsTrigger>
           <TabsTrigger value="gap">갭 분석</TabsTrigger>
         </TabsList>
@@ -51,7 +53,7 @@ export function JdClient() {
                 </CardContent>
               </Card>
 
-              {trends && Object.keys(trends.byDate).length > 1 && (
+              {trends?.byDate && Object.keys(trends.byDate).length > 1 && (
                 <Card>
                   <CardHeader className="pb-2">
                     <CardTitle className="text-sm">수집일별 변화</CardTitle>
@@ -75,6 +77,10 @@ export function JdClient() {
               )}
             </>
           )}
+        </TabsContent>
+
+        <TabsContent value="insights" className="mt-4">
+          <JdInsights />
         </TabsContent>
 
         <TabsContent value="gap" className="mt-4">

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { adminDb } from "@/lib/firebase/admin";
+import { supabase } from "@/lib/supabase/client";
 import { formatDateString } from "@/lib/utils/date";
 
 type MissionType = "concept" | "discussion" | "code";
@@ -11,13 +11,18 @@ type MissionType = "concept" | "discussion" | "code";
 export async function GET() {
   try {
     // 1. 전체 미션 가져오기
-    const missionsSnap = await adminDb.collection("missions").get();
+    const { data: missionsData, error: missionsError } = await supabase
+      .from("missions")
+      .select("id, mission_type, status, category_name, completed_at");
 
-    const missions = missionsSnap.docs.map((d) => ({ id: d.id, ...d.data() })) as Array<{
+    if (missionsError) throw missionsError;
+
+    const missions = (missionsData ?? []) as Array<{
       id: string;
       mission_type: MissionType;
       status: string;
       category_name: string;
+      completed_at: string | null;
     }>;
 
     // 2. 타입별 통과 수
@@ -38,27 +43,24 @@ export async function GET() {
     // 3. 스트릭 계산
     const passedDates = new Set<string>();
     for (const m of missions) {
-      if (m.status === "passed") {
-        const completedAt = (m as Record<string, unknown>).completed_at as string | null;
-        if (completedAt) {
-          passedDates.add(completedAt.split("T")[0]);
-        }
+      if (m.status === "passed" && m.completed_at) {
+        passedDates.add(m.completed_at.split("T")[0]);
       }
     }
     const streak = calcStreak(passedDates);
 
     // 4. 카테고리별 통계
-    const skillsSnap = await adminDb
-      .collection("learning_skills")
-      .orderBy("passed_missions", "desc")
-      .limit(20)
-      .get();
+    const { data: skillsData } = await supabase
+      .from("learning_skills")
+      .select("skill_name, total_missions, passed_missions, confidence_level")
+      .order("passed_missions", { ascending: false })
+      .limit(20);
 
-    const categoryStats = skillsSnap.docs.map((d) => ({
-      skill_name: d.data().skill_name as string,
-      total_missions: (d.data().total_missions as number) ?? 0,
-      passed_missions: (d.data().passed_missions as number) ?? 0,
-      confidence_level: (d.data().confidence_level as number) ?? 0,
+    const categoryStats = (skillsData ?? []).map((d) => ({
+      skill_name: d.skill_name as string,
+      total_missions: (d.total_missions as number) ?? 0,
+      passed_missions: (d.passed_missions as number) ?? 0,
+      confidence_level: (d.confidence_level as number) ?? 0,
     }));
 
     // 5. 약한 영역

@@ -38,8 +38,8 @@ export function DashboardClient() {
 
   useEffect(() => {
     fetch("/api/dashboard")
-      .then((r) => r.json())
-      .then(setData)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => d && setData(d))
       .catch(console.error)
       .finally(() => setLoading(false));
   }, []);

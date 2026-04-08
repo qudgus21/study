@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { FieldValue } from "firebase-admin/firestore";
-import { adminDb } from "@/lib/firebase/admin";
+import { supabase } from "@/lib/supabase/client";
 
 export async function POST(request: NextRequest) {
   try {
@@ -18,16 +17,22 @@ export async function POST(request: NextRequest) {
     const now = new Date().toISOString();
 
     // Attempt 추가
-    const attemptRef = await adminDb.collection("attempts").add({
-      mission_id,
-      answer_text,
-      eval_prompt,
-      eval_result: eval_result ?? null,
-      score: score ?? null,
-      passed: passed ?? false,
-      feedback_summary: feedback_summary ?? null,
-      created_at: now,
-    });
+    const { data: attempt, error: attemptError } = await supabase
+      .from("attempts")
+      .insert({
+        mission_id,
+        answer_text,
+        eval_prompt,
+        eval_result: eval_result ?? null,
+        score: score ?? null,
+        passed: passed ?? false,
+        feedback_summary: feedback_summary ?? null,
+        created_at: now,
+      })
+      .select()
+      .single();
+
+    if (attemptError) throw attemptError;
 
     // Mission 상태 업데이트
     const newStatus = passed ? "passed" : "in_progress";
@@ -36,24 +41,30 @@ export async function POST(request: NextRequest) {
       updateData.completed_at = now;
     }
 
-    await adminDb.collection("missions").doc(mission_id).update(updateData);
+    await supabase.from("missions").update(updateData).eq("id", mission_id);
 
     // learning_skills 업데이트 (passed일 때만 category_name 기준으로 upsert)
     if (passed) {
-      const missionDoc = await adminDb.collection("missions").doc(mission_id).get();
-      const categoryName = missionDoc.data()?.category_name as string | undefined;
+      const { data: mission } = await supabase
+        .from("missions")
+        .select("category_name")
+        .eq("id", mission_id)
+        .single();
+
+      const categoryName = mission?.category_name as string | undefined;
 
       if (categoryName) {
-        const skillsSnap = await adminDb
-          .collection("learning_skills")
-          .where("skill_name", "==", categoryName)
+        const { data: existing } = await supabase
+          .from("learning_skills")
+          .select("*")
+          .eq("skill_name", categoryName)
           .limit(1)
-          .get();
+          .maybeSingle();
 
         const newConfidence = Math.min(100, Math.round((score ?? 0) * 0.6 + 40));
 
-        if (skillsSnap.empty) {
-          await adminDb.collection("learning_skills").add({
+        if (!existing) {
+          await supabase.from("learning_skills").insert({
             skill_name: categoryName,
             total_missions: 1,
             passed_missions: 1,
@@ -61,43 +72,51 @@ export async function POST(request: NextRequest) {
             last_practiced_at: now,
           });
         } else {
-          const skillRef = skillsSnap.docs[0].ref;
-          const prev = skillsSnap.docs[0].data();
-          const prevConfidence = (prev.confidence_level as number) ?? 0;
-          // confidence는 이전값과 새값의 평균으로 완만하게 업데이트
+          const prevConfidence = (existing.confidence_level as number) ?? 0;
           const updatedConfidence = Math.round((prevConfidence + newConfidence) / 2);
 
-          await skillRef.update({
-            total_missions: FieldValue.increment(1),
-            passed_missions: FieldValue.increment(1),
-            confidence_level: updatedConfidence,
-            last_practiced_at: now,
-          });
+          await supabase
+            .from("learning_skills")
+            .update({
+              total_missions: existing.total_missions + 1,
+              passed_missions: existing.passed_missions + 1,
+              confidence_level: updatedConfidence,
+              last_practiced_at: now,
+            })
+            .eq("skill_name", categoryName);
         }
       }
     } else {
       // 실패한 경우에도 total_missions는 증가
-      const missionDoc = await adminDb.collection("missions").doc(mission_id).get();
-      const categoryName = missionDoc.data()?.category_name as string | undefined;
+      const { data: mission } = await supabase
+        .from("missions")
+        .select("category_name")
+        .eq("id", mission_id)
+        .single();
+
+      const categoryName = mission?.category_name as string | undefined;
 
       if (categoryName) {
-        const skillsSnap = await adminDb
-          .collection("learning_skills")
-          .where("skill_name", "==", categoryName)
+        const { data: existing } = await supabase
+          .from("learning_skills")
+          .select("*")
+          .eq("skill_name", categoryName)
           .limit(1)
-          .get();
+          .maybeSingle();
 
-        if (!skillsSnap.empty) {
-          await skillsSnap.docs[0].ref.update({
-            total_missions: FieldValue.increment(1),
-            last_practiced_at: now,
-          });
+        if (existing) {
+          await supabase
+            .from("learning_skills")
+            .update({
+              total_missions: existing.total_missions + 1,
+              last_practiced_at: now,
+            })
+            .eq("skill_name", categoryName);
         }
       }
     }
 
-    const attemptDoc = await attemptRef.get();
-    return NextResponse.json({ id: attemptDoc.id, ...attemptDoc.data() }, { status: 201 });
+    return NextResponse.json(attempt, { status: 201 });
   } catch (error) {
     console.error("Failed to create attempt:", error);
     return NextResponse.json({ error: "Failed to create attempt" }, { status: 500 });

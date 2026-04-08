@@ -1,29 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
-import { adminDb } from "@/lib/firebase/admin";
+import { supabase } from "@/lib/supabase/client";
 
 export async function GET() {
   try {
-    const missionsSnap = await adminDb.collection("missions").orderBy("created_at", "desc").get();
+    const { data, error } = await supabase
+      .from("missions")
+      .select("*, attempts(id, score, passed, created_at)")
+      .order("created_at", { ascending: false });
 
-    const missions = await Promise.all(
-      missionsSnap.docs.map(async (doc) => {
-        const mission = { id: doc.id, ...doc.data() };
+    if (error) throw error;
 
-        const attemptsSnap = await adminDb
-          .collection("attempts")
-          .where("mission_id", "==", doc.id)
-          .get();
-
-        const attempts = attemptsSnap.docs.map((a) => ({
-          id: a.id,
-          score: a.data().score,
-          passed: a.data().passed,
-          created_at: a.data().created_at,
-        }));
-
-        return { ...mission, attempts };
-      }),
-    );
+    const missions = (data ?? []).map((doc) => {
+      const title = doc.title ?? "";
+      return { ...doc, title };
+    });
 
     return NextResponse.json(missions);
   } catch (error) {
@@ -36,24 +26,33 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { topic_id, mission_type, topic_title, category_name } = body;
+    const { category_id, mission_type, title, description, code_snippet, category_name } = body;
 
-    if (!topic_id || !mission_type) {
-      return NextResponse.json({ error: "topic_id, mission_type are required" }, { status: 400 });
+    if (!category_id || !mission_type || !title) {
+      return NextResponse.json(
+        { error: "category_id, mission_type, title are required" },
+        { status: 400 },
+      );
     }
 
-    const docRef = await adminDb.collection("missions").add({
-      topic_id,
-      mission_type,
-      topic_title: topic_title ?? "",
-      category_name: category_name ?? "",
-      status: "pending",
-      created_at: new Date().toISOString(),
-      completed_at: null,
-    });
+    const { data, error } = await supabase
+      .from("missions")
+      .insert({
+        category_id,
+        category_name: category_name ?? "",
+        mission_type,
+        title,
+        description: description ?? null,
+        code_snippet: code_snippet ?? null,
+        status: "pending",
+        created_at: new Date().toISOString(),
+        completed_at: null,
+      })
+      .select()
+      .single();
 
-    const doc = await docRef.get();
-    return NextResponse.json({ id: doc.id, ...doc.data() }, { status: 201 });
+    if (error) throw error;
+    return NextResponse.json(data, { status: 201 });
   } catch (error) {
     console.error("Failed to create mission:", error);
     return NextResponse.json({ error: "Failed to create mission" }, { status: 500 });

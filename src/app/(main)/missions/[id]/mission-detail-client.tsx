@@ -22,8 +22,8 @@ interface MissionDetail {
   id: string;
   missionType: MissionType;
   status: string;
-  topicTitle: string;
-  topicDescription: string | null;
+  title: string;
+  description: string | null;
   codeSnippet: string | null;
   categoryName: string;
   attempts: Array<{
@@ -105,8 +105,8 @@ export function MissionDetailClient({ missionId }: { missionId: string }) {
           id: data.id,
           missionType: data.mission_type as MissionType,
           status: data.status,
-          topicTitle: data.topic_title ?? "",
-          topicDescription: data.topic_description ?? null,
+          title: data.title ?? data.topic_title ?? "",
+          description: data.description ?? data.topic_description ?? null,
           codeSnippet: data.code_snippet ?? null,
           categoryName: data.category_name ?? "기타",
           attempts: (data.attempts ?? []).map((a: Record<string, unknown>) => ({
@@ -199,7 +199,7 @@ export function MissionDetailClient({ missionId }: { missionId: string }) {
         body: JSON.stringify({
           mission_id: mission.id,
           mission_type: mission.missionType,
-          question: mission.topicTitle,
+          question: mission.title,
           answer: draftAnswer,
           category_name: mission.categoryName,
           code_snippet: mission.codeSnippet ?? undefined,
@@ -324,9 +324,9 @@ export function MissionDetailClient({ missionId }: { missionId: string }) {
       {/* 질문 */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg">{mission.topicTitle}</CardTitle>
-          {mission.topicDescription && (
-            <p className="text-muted-foreground text-sm">{mission.topicDescription}</p>
+          <CardTitle className="text-lg">{mission.title}</CardTitle>
+          {mission.description && (
+            <p className="text-muted-foreground text-sm">{mission.description}</p>
           )}
         </CardHeader>
         {mission.codeSnippet && (

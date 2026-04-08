@@ -10,7 +10,7 @@ import {
   Library,
   Settings,
   X,
-  GraduationCap,
+  Anvil,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useUIStore } from "@/stores/ui-store";
@@ -21,7 +21,7 @@ const navItems = [
   { href: "/articles", label: "아티클", icon: Newspaper },
   { href: "/jd-analysis", label: "JD 분석", icon: BarChart3 },
 
-  { href: "/topics", label: "토픽 관리", icon: Library },
+  { href: "/categories", label: "카테고리", icon: Library },
   { href: "/settings", label: "설정", icon: Settings },
 ];
 
@@ -49,8 +49,8 @@ export function Sidebar() {
         {/* 로고 */}
         <div className="border-border flex h-16 items-center justify-between border-b px-4">
           <Link href="/dashboard" className="flex items-center gap-2">
-            <GraduationCap className="text-primary h-6 w-6" />
-            <span className="text-lg font-bold">Senior FE</span>
+            <Anvil className="text-primary h-6 w-6" />
+            <span className="text-lg font-bold">FE Dojo</span>
           </Link>
           <button onClick={() => setSidebarOpen(false)} className="cursor-pointer md:hidden">
             <X className="h-5 w-5" />

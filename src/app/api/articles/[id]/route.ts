@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { adminDb } from "@/lib/firebase/admin";
+import { supabase } from "@/lib/supabase/client";
 
 /**
  * PATCH /api/articles/[id]
@@ -18,7 +18,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       return NextResponse.json({ error: "No valid fields to update" }, { status: 400 });
     }
 
-    await adminDb.collection("articles").doc(id).update(updateData);
+    await supabase.from("articles").update(updateData).eq("id", id);
     return NextResponse.json({ ok: true });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";

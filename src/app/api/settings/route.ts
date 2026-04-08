@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { adminDb } from "@/lib/firebase/admin";
-
-const GLOBAL_DOC = "global";
+import { supabase } from "@/lib/supabase/client";
 
 const DEFAULT_KEYWORDS = [
   // 언어 & 런타임
@@ -112,25 +110,24 @@ const DEFAULT_KEYWORDS = [
 /** GET /api/settings */
 export async function GET() {
   try {
-    const doc = await adminDb.collection("settings").doc(GLOBAL_DOC).get();
+    const { data, error } = await supabase.from("settings").select("*").eq("id", "global").single();
 
-    if (!doc.exists) {
+    if (error || !data) {
       const defaults = {
+        id: "global",
         pass_score: 80,
         article_keywords: DEFAULT_KEYWORDS,
         updated_at: new Date().toISOString(),
       };
-      await adminDb.collection("settings").doc(GLOBAL_DOC).set(defaults);
+      await supabase.from("settings").upsert(defaults);
       return NextResponse.json(defaults);
     }
 
-    const data = doc.data()!;
-    // 키워드가 없으면 기본값 세팅
-    if (!data.article_keywords) {
-      await adminDb
-        .collection("settings")
-        .doc(GLOBAL_DOC)
-        .update({ article_keywords: DEFAULT_KEYWORDS });
+    if (!data.article_keywords || data.article_keywords.length === 0) {
+      await supabase
+        .from("settings")
+        .update({ article_keywords: DEFAULT_KEYWORDS })
+        .eq("id", "global");
       data.article_keywords = DEFAULT_KEYWORDS;
     }
 
@@ -154,7 +151,7 @@ export async function PATCH(request: NextRequest) {
       updateData.article_keywords = body.article_keywords;
     }
 
-    await adminDb.collection("settings").doc(GLOBAL_DOC).set(updateData, { merge: true });
+    await supabase.from("settings").update(updateData).eq("id", "global");
     return NextResponse.json({ ok: true });
   } catch (error) {
     return NextResponse.json({ error: String(error) }, { status: 500 });

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { adminDb } from "@/lib/firebase/admin";
+import { supabase } from "@/lib/supabase/client";
 
 /**
  * GET /api/jd/trends
@@ -7,19 +7,17 @@ import { adminDb } from "@/lib/firebase/admin";
  */
 export async function GET() {
   try {
-    // 최근 수집일 4개 찾기
-    const allSnap = await adminDb
-      .collection("jd_skill_trends")
-      .orderBy("collected_date", "desc")
-      .get();
+    const { data: allDocs } = await supabase
+      .from("jd_skill_trends")
+      .select("*")
+      .order("collected_date", { ascending: false });
 
-    const allDates = [...new Set(allSnap.docs.map((d) => d.data().collected_date as string))];
-    const recentDates = allDates.slice(0, 4);
-
-    if (recentDates.length === 0) {
+    if (!allDocs || allDocs.length === 0) {
       return NextResponse.json({ latestDate: null, topSkills: [], byDate: {} });
     }
 
+    const allDates = [...new Set(allDocs.map((d) => d.collected_date as string))];
+    const recentDates = allDates.slice(0, 4);
     const latestDate = recentDates[0];
 
     interface TrendDoc {
@@ -28,9 +26,7 @@ export async function GET() {
       skill_name: string;
       mention_count: number;
     }
-    const trends = allSnap.docs
-      .map((d) => ({ id: d.id, ...(d.data() as Omit<TrendDoc, "id">) }))
-      .filter((t) => recentDates.includes(t.collected_date));
+    const trends = (allDocs as TrendDoc[]).filter((t) => recentDates.includes(t.collected_date));
 
     // 최신 수집일 Top 15
     const topSkills = trends

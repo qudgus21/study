@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { adminDb } from "@/lib/firebase/admin";
+import { supabase } from "@/lib/supabase/client";
 
 /**
  * GET /api/articles?source=&unread=&bookmarked=
@@ -12,21 +12,17 @@ export async function GET(request: NextRequest) {
     const unreadOnly = searchParams.get("unread") === "true";
     const bookmarkedOnly = searchParams.get("bookmarked") === "true";
 
-    let query = adminDb.collection("articles").orderBy("published_at", "desc");
+    let query = supabase.from("articles").select("*").order("published_at", { ascending: false });
 
-    if (source) {
-      query = query.where("source", "==", source) as typeof query;
-    }
-    if (unreadOnly) {
-      query = query.where("is_read", "==", false) as typeof query;
-    }
-    if (bookmarkedOnly) {
-      query = query.where("is_bookmarked", "==", true) as typeof query;
-    }
+    if (source) query = query.eq("source", source);
+    if (unreadOnly) query = query.eq("is_read", false);
+    if (bookmarkedOnly) query = query.eq("is_bookmarked", true);
 
-    const snap = await query.limit(500).get();
-    const items = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    const { data, error } = await query.limit(500);
 
+    if (error) throw error;
+
+    const items = data ?? [];
     return NextResponse.json({ items, total: items.length });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";

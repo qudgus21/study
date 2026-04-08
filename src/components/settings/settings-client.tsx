@@ -24,27 +24,27 @@ interface Settings {
   article_keywords: string[];
 }
 
-const TOPIC_GENERATORS = [
+const CATEGORY_GENERATORS = [
   {
     key: "ai",
     label: "AI 자율 생성",
-    description: "시니어 FE 개발자에게 적합한 토픽을 AI가 생성",
+    description: "시니어 FE 개발자에게 적합한 학습 카테고리를 AI가 생성",
     icon: Sparkles,
-    url: "/api/topics/generate/ai",
+    url: "/api/categories/generate/ai",
   },
   {
     key: "article",
     label: "아티클 기반",
-    description: "수집된 아티클에서 학습 토픽 추출",
+    description: "수집된 아티클에서 학습 카테고리 추출",
     icon: Newspaper,
-    url: "/api/topics/generate/article",
+    url: "/api/categories/generate/article",
   },
   {
     key: "jd",
     label: "JD 갭 분석",
-    description: "시장 요구 vs 내 역량 비교 → RED 스킬 토픽 생성",
+    description: "시장 요구 vs 내 역량 비교 → RED 스킬 카테고리 생성",
     icon: BarChart3,
-    url: "/api/topics/generate/jd",
+    url: "/api/categories/generate/jd",
   },
 ] as const;
 
@@ -100,7 +100,7 @@ export function SettingsClient() {
   const [settings, setSettings] = useState<Settings | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [topicCounts, setTopicCounts] = useState({ ai: 5, jd: 5, article: 5 });
+  const [categoryCounts, setTopicCounts] = useState({ ai: 5, jd: 5, article: 5 });
   const [generatingType, setGeneratingType] = useState<string | null>(null);
   const [collectingKey, setCollectingKey] = useState<string | null>(null);
   const [lastRunMap, setLastRunMap] = useState<Record<string, string>>({});
@@ -119,8 +119,8 @@ export function SettingsClient() {
 
   useEffect(() => {
     fetch("/api/settings")
-      .then((r) => r.json())
-      .then(setSettings)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => d && setSettings(d))
       .catch(console.error)
       .finally(() => setLoading(false));
     setLastRunMap(getLastRunMap());
@@ -149,27 +149,69 @@ export function SettingsClient() {
     }
   }
 
-  async function handleGenerateTopics(gen: (typeof TOPIC_GENERATORS)[number]) {
+  async function handleGenerateCategories(gen: (typeof CATEGORY_GENERATORS)[number]) {
     setGeneratingType(gen.key);
+    setCollectModal({ open: true, label: gen.label, logs: [], done: false });
+
     try {
       const res = await fetch(gen.url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ count: topicCounts[gen.key] }),
+        body: JSON.stringify({ count: categoryCounts[gen.key] }),
       });
-      const data = (await res.json()) as Record<string, unknown>;
-      if (data.error) {
-        toast.error(`${gen.label} 실패: ${data.error}`);
-      } else {
-        toast.success(`${gen.label}: ${data.created}개 토픽 생성 완료`);
-        saveLastRun(`topic_${gen.key}`);
-        setLastRunMap(getLastRunMap());
+
+      const reader = res.body?.getReader();
+      if (!reader) throw new Error("No reader");
+
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() ?? "";
+
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue;
+          try {
+            const data = JSON.parse(line.slice(6)) as Record<string, unknown>;
+            const log = formatCategorySSEEvent(data);
+            if (log) {
+              setCollectModal((prev) => ({
+                ...prev,
+                logs: [...prev.logs, log],
+                done: data.type === "done",
+              }));
+            }
+          } catch {
+            /* skip */
+          }
+        }
       }
+
+      saveLastRun(`category_${gen.key}`);
+      setLastRunMap(getLastRunMap());
     } catch {
-      toast.error(`${gen.label} 실패`);
+      setCollectModal((prev) => ({
+        ...prev,
+        logs: [...prev.logs, "카테고리 생성 실패"],
+        done: true,
+      }));
     } finally {
       setGeneratingType(null);
     }
+  }
+
+  function formatCategorySSEEvent(data: Record<string, unknown>): string | null {
+    if (data.type === "log") return data.message as string;
+    if (data.type === "candidate") return `  → 후보: ${data.name}`;
+    if (data.type === "saved") return `  ✓ 저장: ${data.name}`;
+    if (data.type === "done") return `완료: ${data.created}개 카테고리 생성`;
+    if (data.type === "error") return `오류: ${data.message}`;
+    return null;
   }
 
   async function handleCollect(collector: (typeof DATA_COLLECTORS)[number]) {
@@ -237,6 +279,7 @@ export function SettingsClient() {
         return `${data.current}/${data.total} ${data.company} - ${data.position}${dup}`;
       }
       if (data.type === "skills") return `${data.message}`;
+      if (data.type === "ai_analysis") return `🤖 ${data.message}`;
       if (data.type === "done")
         return `완료: ${data.added}건 추가, ${data.skipped}건 중복, 스킬 ${data.skillsTracked}개`;
       if (data.type === "error") return `오류: ${data.message}`;
@@ -269,17 +312,17 @@ export function SettingsClient() {
 
   return (
     <div className="max-w-lg space-y-6">
-      {/* 토픽 생성 */}
+      {/* 카테고리 생성 */}
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="flex items-center gap-2 text-sm">
             <Sparkles className="h-4 w-4" />
-            토픽 생성
+            카테고리 생성
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          {TOPIC_GENERATORS.map((gen) => {
-            const lastRun = formatLastRun(lastRunMap[`topic_${gen.key}`]);
+          {CATEGORY_GENERATORS.map((gen) => {
+            const lastRun = formatLastRun(lastRunMap[`category_${gen.key}`]);
             return (
               <div key={gen.key} className="space-y-2">
                 <div className="flex items-center gap-2.5">
@@ -305,7 +348,7 @@ export function SettingsClient() {
                       -
                     </button>
                     <span className="w-6 text-center text-sm font-medium tabular-nums">
-                      {topicCounts[gen.key]}
+                      {categoryCounts[gen.key]}
                     </span>
                     <button
                       onClick={() =>
@@ -320,7 +363,7 @@ export function SettingsClient() {
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => handleGenerateTopics(gen)}
+                    onClick={() => handleGenerateCategories(gen)}
                     disabled={generatingType !== null}
                     className="shrink-0 gap-1.5"
                   >

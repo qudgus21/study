@@ -1,5 +1,6 @@
-import { adminDb } from "@/lib/firebase/admin";
+import { supabase } from "@/lib/supabase/client";
 import { crawlWantedJobs } from "@/lib/wanted/crawler";
+import { analyzeJds } from "@/lib/wanted/jd-analyzer";
 import { formatDateString } from "@/lib/utils/date";
 
 /**
@@ -18,6 +19,11 @@ export async function GET() {
         const collectedDate = formatDateString(new Date());
         const skillCount: Record<string, number> = {};
         const skillJdIds: Record<string, string[]> = {};
+        const collectedJds: Array<{
+          company_name: string;
+          position_title: string;
+          raw_description: string;
+        }> = [];
         let added = 0;
         let skipped = 0;
 
@@ -35,14 +41,22 @@ export async function GET() {
           if (event.type === "job" && event.job) {
             const job = event.job;
 
-            // 중복 체크
-            const exists = await adminDb
-              .collection("wanted_jds")
-              .where("wanted_id", "==", job.wanted_id)
-              .limit(1)
-              .get();
+            // AI 분석용으로 모든 JD 수집 (중복 포함)
+            collectedJds.push({
+              company_name: job.company_name,
+              position_title: job.position_title,
+              raw_description: job.raw_description,
+            });
 
-            if (!exists.empty) {
+            // 중복 체크
+            const { data: existing } = await supabase
+              .from("wanted_jds")
+              .select("id")
+              .eq("wanted_id", job.wanted_id)
+              .limit(1)
+              .maybeSingle();
+
+            if (existing) {
               skipped++;
               send({
                 type: "progress",
@@ -57,16 +71,21 @@ export async function GET() {
               continue;
             }
 
-            const docRef = await adminDb.collection("wanted_jds").add({
-              ...job,
-              crawled_at: new Date().toISOString(),
-            });
+            const { data: insertedJd } = await supabase
+              .from("wanted_jds")
+              .insert({
+                ...job,
+                crawled_at: new Date().toISOString(),
+              })
+              .select("id")
+              .single();
 
+            const jdId = insertedJd?.id ?? "";
             const allSkills = [...new Set([...job.required_skills, ...job.preferred_skills])];
             for (const skill of allSkills) {
               skillCount[skill] = (skillCount[skill] ?? 0) + 1;
               if (!skillJdIds[skill]) skillJdIds[skill] = [];
-              skillJdIds[skill].push(docRef.id);
+              skillJdIds[skill].push(jdId);
             }
 
             added++;
@@ -86,29 +105,51 @@ export async function GET() {
         send({ type: "skills", message: "스킬 트렌드 집계 중..." });
 
         for (const [skill, count] of Object.entries(skillCount)) {
-          const trendSnap = await adminDb
-            .collection("jd_skill_trends")
-            .where("collected_date", "==", collectedDate)
-            .where("skill_name", "==", skill)
+          const { data: existingTrend } = await supabase
+            .from("jd_skill_trends")
+            .select("id, mention_count, sample_jd_ids")
+            .eq("collected_date", collectedDate)
+            .eq("skill_name", skill)
             .limit(1)
-            .get();
+            .maybeSingle();
 
-          if (trendSnap.empty) {
-            await adminDb.collection("jd_skill_trends").add({
+          if (!existingTrend) {
+            await supabase.from("jd_skill_trends").insert({
               collected_date: collectedDate,
               skill_name: skill,
               mention_count: count,
               sample_jd_ids: skillJdIds[skill].slice(0, 5),
             });
           } else {
-            const prev = trendSnap.docs[0].data();
-            await trendSnap.docs[0].ref.update({
-              mention_count: (prev.mention_count as number) + count,
-              sample_jd_ids: [...(prev.sample_jd_ids as string[]), ...skillJdIds[skill]].slice(
-                0,
-                5,
-              ),
-            });
+            await supabase
+              .from("jd_skill_trends")
+              .update({
+                mention_count: (existingTrend.mention_count as number) + count,
+                sample_jd_ids: [
+                  ...((existingTrend.sample_jd_ids as string[]) ?? []),
+                  ...skillJdIds[skill],
+                ].slice(0, 5),
+              })
+              .eq("id", existingTrend.id);
+          }
+        }
+
+        // AI 인사이트 분석
+        if (collectedJds.length > 0) {
+          send({ type: "ai_analysis", message: "AI 인사이트 분석 시작..." });
+
+          const insight = await analyzeJds(collectedJds, (msg) =>
+            send({ type: "ai_analysis", message: msg }),
+          );
+
+          if (insight) {
+            // 같은 날짜 기존 인사이트 삭제 후 저장
+            await supabase.from("jd_insights").delete().eq("collected_date", collectedDate);
+
+            await supabase.from("jd_insights").insert(insight);
+            send({ type: "ai_analysis", message: "AI 인사이트 저장 완료" });
+          } else {
+            send({ type: "ai_analysis", message: "AI 분석 실패 (스킬 트렌드는 정상 저장됨)" });
           }
         }
 

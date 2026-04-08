@@ -1,6 +1,6 @@
 {
-  "name": "Senior FE Study",
-  "short_name": "SeniorFE",
+  "name": "FE Dojo",
+  "short_name": "FEDojo",
   "description": "시니어 프론트엔드 개발자 학습 도구",
   "start_url": "/dashboard",
   "display": "standalone",

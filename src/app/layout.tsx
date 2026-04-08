@@ -16,7 +16,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Senior FE Study",
+  title: "FE Dojo",
   description: "시니어 프론트엔드 개발자 학습 도구",
   manifest: "/manifest.json",
   appleWebApp: {

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { adminDb } from "@/lib/firebase/admin";
+import { supabase } from "@/lib/supabase/client";
 
 export interface GapItem {
   skill_name: string;
@@ -16,13 +16,14 @@ export interface GapItem {
 export async function GET() {
   try {
     // 가장 최근 수집일 찾기
-    const latestSnap = await adminDb
-      .collection("jd_skill_trends")
-      .orderBy("collected_date", "desc")
+    const { data: latestRow } = await supabase
+      .from("jd_skill_trends")
+      .select("collected_date")
+      .order("collected_date", { ascending: false })
       .limit(1)
-      .get();
+      .maybeSingle();
 
-    if (latestSnap.empty) {
+    if (!latestRow) {
       return NextResponse.json({
         gaps: [],
         summary: { green: 0, yellow: 0, red: 0 },
@@ -30,27 +31,29 @@ export async function GET() {
       });
     }
 
-    const latestDate = latestSnap.docs[0].data().collected_date as string;
+    const latestDate = latestRow.collected_date as string;
 
     // 해당 날짜의 스킬 트렌드 (Top 20)
-    const trendsSnap = await adminDb
-      .collection("jd_skill_trends")
-      .where("collected_date", "==", latestDate)
-      .get();
+    const { data: trendsData } = await supabase
+      .from("jd_skill_trends")
+      .select("skill_name, mention_count")
+      .eq("collected_date", latestDate)
+      .order("mention_count", { ascending: false })
+      .limit(20);
 
-    const marketSkills = trendsSnap.docs
-      .map((d) => ({
-        skill_name: d.data().skill_name as string,
-        mention_count: d.data().mention_count as number,
-      }))
-      .sort((a, b) => b.mention_count - a.mention_count)
-      .slice(0, 20);
+    const marketSkills = (trendsData ?? []) as Array<{
+      skill_name: string;
+      mention_count: number;
+    }>;
 
     // 내 학습 스킬 역량
-    const skillsSnap = await adminDb.collection("learning_skills").get();
+    const { data: skillsData } = await supabase
+      .from("learning_skills")
+      .select("skill_name, confidence_level");
+
     const mySkills = new Map<string, number>();
-    for (const doc of skillsSnap.docs) {
-      mySkills.set(doc.data().skill_name as string, (doc.data().confidence_level as number) ?? 0);
+    for (const row of skillsData ?? []) {
+      mySkills.set(row.skill_name as string, (row.confidence_level as number) ?? 0);
     }
 
     // 갭 계산

@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { adminDb } from "@/lib/firebase/admin";
+import { supabase } from "@/lib/supabase/client";
 import { RSS_SOURCES } from "@/lib/rss/sources";
 import { fetchRssSource, type FetchedArticle } from "@/lib/rss/fetcher";
 import { spawnClaude, parseStreamOutput } from "@/lib/evaluate/claude-runner";
@@ -22,8 +22,12 @@ export async function GET(request: NextRequest) {
       }
 
       try {
-        const settingsDoc = await adminDb.collection("settings").doc("global").get();
-        const keywords: string[] = (settingsDoc.data()?.article_keywords as string[]) ?? [];
+        const { data: settingsRow } = await supabase
+          .from("settings")
+          .select("article_keywords")
+          .eq("id", "global")
+          .single();
+        const keywords: string[] = (settingsRow?.article_keywords as string[]) ?? [];
         const keywordPatterns = keywords.map((k) => k.toLowerCase());
 
         let totalAdded = 0;
@@ -38,12 +42,13 @@ export async function GET(request: NextRequest) {
             if (!article.url) continue;
             if (new Date(article.published_at).getTime() < cutoff) continue;
 
-            const existing = await adminDb
-              .collection("articles")
-              .where("url", "==", article.url)
+            const { data: existing } = await supabase
+              .from("articles")
+              .select("id")
+              .eq("url", article.url)
               .limit(1)
-              .get();
-            if (!existing.empty) continue;
+              .maybeSingle();
+            if (existing) continue;
 
             if (PASS_THROUGH_SOURCES.includes(source.name)) {
               await saveArticle(article);
@@ -84,12 +89,12 @@ export async function GET(request: NextRequest) {
             const existingLower = new Set(keywords.map((k) => k.toLowerCase()));
             const unique = aiResult.newKeywords.filter((k) => !existingLower.has(k.toLowerCase()));
             if (unique.length > 0) {
-              await adminDb
-                .collection("settings")
-                .doc("global")
+              await supabase
+                .from("settings")
                 .update({
                   article_keywords: [...keywords, ...unique],
-                });
+                })
+                .eq("id", "global");
             }
           }
 
@@ -116,7 +121,7 @@ export async function GET(request: NextRequest) {
 }
 
 async function saveArticle(article: FetchedArticle) {
-  await adminDb.collection("articles").add({
+  await supabase.from("articles").insert({
     ...article,
     is_read: false,
     is_bookmarked: false,

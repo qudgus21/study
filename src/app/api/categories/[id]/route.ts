@@ -1,22 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
-import { adminDb } from "@/lib/firebase/admin";
+import { supabase } from "@/lib/supabase/client";
 
 type Params = { params: Promise<{ id: string }> };
 
-/** PATCH /api/topics/[id] */
+/** PATCH /api/categories/[id] */
 export async function PATCH(request: NextRequest, { params }: Params) {
   try {
     const { id } = await params;
     const body = await request.json();
 
-    const allowed = [
-      "title",
-      "description",
-      "mission_type",
-      "category_name",
-      "code_snippet",
-      "is_used",
-    ];
+    const allowed = ["name", "description"];
     const updateData: Record<string, unknown> = {};
     for (const key of allowed) {
       if (key in body) updateData[key] = body[key];
@@ -26,18 +19,18 @@ export async function PATCH(request: NextRequest, { params }: Params) {
       return NextResponse.json({ error: "No valid fields" }, { status: 400 });
     }
 
-    await adminDb.collection("topics").doc(id).update(updateData);
+    await supabase.from("categories").update(updateData).eq("id", id);
     return NextResponse.json({ ok: true });
   } catch (error) {
     return NextResponse.json({ error: String(error) }, { status: 500 });
   }
 }
 
-/** DELETE /api/topics/[id] */
+/** DELETE /api/categories/[id] */
 export async function DELETE(_request: NextRequest, { params }: Params) {
   try {
     const { id } = await params;
-    await adminDb.collection("topics").doc(id).delete();
+    await supabase.from("categories").delete().eq("id", id);
     return NextResponse.json({ ok: true });
   } catch (error) {
     return NextResponse.json({ error: String(error) }, { status: 500 });

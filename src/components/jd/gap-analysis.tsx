@@ -55,24 +55,28 @@ export function GapAnalysis({ topSkills }: GapAnalysisProps) {
 
   useEffect(() => {
     fetch("/api/jd/gap")
-      .then((r) => r.json())
-      .then(setData)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => d && setData(d))
       .catch(console.error)
       .finally(() => setLoading(false));
   }, [topSkills]);
 
-  async function handleGenerateTopics() {
+  async function handleGenerateCategories() {
     setGenerating(true);
     try {
-      const res = await fetch("/api/cron/generate-topics");
+      const res = await fetch("/api/categories/generate/jd", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ count: 10 }),
+      });
       const result = (await res.json()) as { created: number; skills: string[] };
       if (result.created > 0) {
-        toast.success(`${result.created}개 토픽 자동 생성됨: ${result.skills.join(", ")}`);
+        toast.success(`${result.created}개 카테고리 자동 생성됨: ${result.skills.join(", ")}`);
       } else {
-        toast.info("생성할 갭 토픽이 없습니다. (이미 생성됐거나 RED 스킬 없음)");
+        toast.info("생성할 갭 카테고리가 없습니다. (이미 생성됐거나 RED 스킬 없음)");
       }
     } catch {
-      toast.error("토픽 생성에 실패했습니다.");
+      toast.error("카테고리 생성에 실패했습니다.");
     } finally {
       setGenerating(false);
     }
@@ -141,7 +145,7 @@ export function GapAnalysis({ topSkills }: GapAnalysisProps) {
         )}
       </div>
 
-      {/* 갭 토픽 자동 생성 */}
+      {/* 갭 카테고리 자동 생성 */}
       {data.summary.red > 0 && (
         <Card className="border-red-500/20 bg-red-500/5">
           <CardHeader className="pb-2">
@@ -151,17 +155,17 @@ export function GapAnalysis({ topSkills }: GapAnalysisProps) {
           </CardHeader>
           <CardContent>
             <p className="text-muted-foreground mb-3 text-xs">
-              시장에서 요구하지만 역량이 부족한 스킬을 토픽으로 자동 생성합니다.
+              시장에서 요구하지만 역량이 부족한 스킬을 카테고리로 자동 생성합니다.
             </p>
             <Button
               size="sm"
               variant="outline"
-              onClick={handleGenerateTopics}
+              onClick={handleGenerateCategories}
               disabled={generating}
               className="gap-2"
             >
               <Wand2 className="h-3.5 w-3.5" />
-              {generating ? "생성 중..." : "갭 토픽 자동 생성"}
+              {generating ? "생성 중..." : "갭 카테고리 자동 생성"}
             </Button>
           </CardContent>
         </Card>

@@ -21,7 +21,7 @@ export function MissionListClient() {
 
         interface MissionResponse {
           id: string;
-          topic_title?: string;
+          title?: string;
           mission_type: "concept" | "discussion" | "code";
           status: "pending" | "in_progress" | "passed" | "failed";
           category_name: string;
@@ -30,7 +30,7 @@ export function MissionListClient() {
 
         const mapped: MissionCardData[] = (data as MissionResponse[]).map((m) => ({
           id: m.id,
-          title: m.topic_title ?? "제목 없음",
+          title: m.title ?? "제목 없음",
           missionType: m.mission_type,
           status: m.status,
           categoryName: m.category_name,
@@ -102,7 +102,7 @@ export function MissionListClient() {
           {filtered.length === 0 ? (
             <div className="text-muted-foreground py-12 text-center">
               <p>미션이 없습니다.</p>
-              <p className="text-xs">토픽에서 미션을 생성해보세요.</p>
+              <p className="text-xs">카테고리에서 미션을 생성해보세요.</p>
             </div>
           ) : (
             filtered.map((mission) => <MissionCard key={mission.id} mission={mission} />)
