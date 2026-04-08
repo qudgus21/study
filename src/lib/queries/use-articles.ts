@@ -53,6 +53,30 @@ export function useUpdateArticle() {
   });
 }
 
+export function useDeleteArticle() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const res = await fetch(`/api/articles/${id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error("Failed to delete article");
+    },
+    onMutate: async (id) => {
+      await queryClient.cancelQueries({ queryKey: queryKeys.articles });
+      const previous = queryClient.getQueryData<ArticleData[]>(queryKeys.articles);
+      queryClient.setQueryData<ArticleData[]>(queryKeys.articles, (old) =>
+        old?.filter((a) => a.id !== id),
+      );
+      return { previous };
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(queryKeys.articles, context.previous);
+      }
+    },
+  });
+}
+
 export function useGenerateCategory() {
   const queryClient = useQueryClient();
 

@@ -1,16 +1,11 @@
 "use client";
 
-import { useState } from "react";
-import { ExternalLink, Bookmark, BookmarkCheck, PlusCircle, Check } from "lucide-react";
+import { ExternalLink, Bookmark, BookmarkCheck, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  useUpdateArticle,
-  useGenerateCategory,
-  type ArticleData,
-} from "@/lib/queries/use-articles";
+import { useUpdateArticle, useDeleteArticle, type ArticleData } from "@/lib/queries/use-articles";
 
 export type { ArticleData };
 
@@ -30,31 +25,26 @@ function timeAgo(isoDate: string): string {
 
 export function ArticleCard({ article }: ArticleCardProps) {
   const updateArticle = useUpdateArticle();
-  const generateCategory = useGenerateCategory();
-  const [loadingTopic, setLoadingTopic] = useState(false);
+  const deleteArticle = useDeleteArticle();
 
   function handleMarkRead() {
     if (article.is_read) return;
     updateArticle.mutate({ id: article.id, changes: { is_read: true } });
   }
 
-  function handleToggleBookmark() {
+  function handleToggleBookmark(e: React.MouseEvent) {
+    e.stopPropagation();
     updateArticle.mutate({
       id: article.id,
       changes: { is_bookmarked: !article.is_bookmarked },
     });
   }
 
-  async function handleGenerateTopic() {
-    setLoadingTopic(true);
-    try {
-      await generateCategory.mutateAsync(article.id);
-      toast.success("카테고리가 생성됐습니다.");
-    } catch {
-      toast.error("카테고리 생성에 실패했습니다.");
-    } finally {
-      setLoadingTopic(false);
-    }
+  function handleDelete(e: React.MouseEvent) {
+    e.stopPropagation();
+    deleteArticle.mutate(article.id, {
+      onError: () => toast.error("삭제에 실패했습니다."),
+    });
   }
 
   function handleOpen() {
@@ -63,7 +53,10 @@ export function ArticleCard({ article }: ArticleCardProps) {
   }
 
   return (
-    <Card className={article.is_read ? "opacity-60" : ""}>
+    <Card
+      className={`hover:bg-accent/50 cursor-pointer transition-colors ${article.is_read ? "opacity-60" : ""}`}
+      onClick={handleOpen}
+    >
       <CardContent className="p-4">
         <div className="flex items-start gap-3">
           <div className="min-w-0 flex-1">
@@ -77,13 +70,10 @@ export function ArticleCard({ article }: ArticleCardProps) {
             </div>
 
             {/* 제목 */}
-            <button
-              onClick={handleOpen}
-              className="hover:text-primary text-left text-sm leading-snug font-medium transition-colors"
-            >
+            <p className="text-left text-sm leading-snug font-medium">
               {article.title}
               <ExternalLink className="ml-1 inline h-3 w-3 opacity-50" />
-            </button>
+            </p>
 
             {/* 요약 */}
             {article.summary && (
@@ -112,15 +102,11 @@ export function ArticleCard({ article }: ArticleCardProps) {
               variant="ghost"
               size="icon"
               className="h-7 w-7"
-              onClick={handleGenerateTopic}
-              disabled={loadingTopic || article.topic_generated}
-              title={article.topic_generated ? "카테고리 생성됨" : "카테고리로 만들기"}
+              onClick={handleDelete}
+              disabled={deleteArticle.isPending}
+              title="삭제"
             >
-              {article.topic_generated ? (
-                <Check className="h-4 w-4 text-green-500" />
-              ) : (
-                <PlusCircle className="h-4 w-4" />
-              )}
+              <Trash2 className="text-destructive h-4 w-4" />
             </Button>
           </div>
         </div>
