@@ -68,6 +68,7 @@ CREATE TABLE articles (
   is_bookmarked BOOLEAN NOT NULL DEFAULT false,
   topic_generated BOOLEAN NOT NULL DEFAULT false,
   topic_id UUID REFERENCES categories(id) ON DELETE SET NULL,
+  memo TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 

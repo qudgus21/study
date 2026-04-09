@@ -1,6 +1,14 @@
 "use client";
 
-import { ExternalLink, Bookmark, BookmarkCheck, Trash2, Eye, EyeOff } from "lucide-react";
+import {
+  ExternalLink,
+  Bookmark,
+  BookmarkCheck,
+  Trash2,
+  Eye,
+  EyeOff,
+  StickyNote,
+} from "lucide-react";
 import { toast } from "sonner";
 import { blockIfDemo } from "@/lib/demo-mode";
 import { Card, CardContent } from "@/components/ui/card";
@@ -12,6 +20,7 @@ export type { ArticleData };
 
 interface ArticleCardProps {
   article: ArticleData;
+  onMemo: (article: ArticleData) => void;
 }
 
 function timeAgo(isoDate: string): string {
@@ -24,7 +33,7 @@ function timeAgo(isoDate: string): string {
   return new Date(isoDate).toLocaleDateString("ko-KR", { month: "short", day: "numeric" });
 }
 
-export function ArticleCard({ article }: ArticleCardProps) {
+export function ArticleCard({ article, onMemo }: ArticleCardProps) {
   const updateArticle = useUpdateArticle();
   const deleteArticle = useDeleteArticle();
 
@@ -118,6 +127,19 @@ export function ArticleCard({ article }: ArticleCardProps) {
               ) : (
                 <Bookmark className="h-4 w-4" />
               )}
+            </Button>
+
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7"
+              onClick={(e) => {
+                e.stopPropagation();
+                onMemo(article);
+              }}
+              title="메모"
+            >
+              <StickyNote className={`h-4 w-4 ${article.memo ? "text-yellow-500" : ""}`} />
             </Button>
 
             <Button

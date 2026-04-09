@@ -11,6 +11,7 @@ export interface ArticleData {
   is_read: boolean;
   is_bookmarked: boolean;
   topic_generated?: boolean;
+  memo?: string | null;
 }
 
 export function useArticles() {

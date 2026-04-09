@@ -9,13 +9,23 @@ import {
   ChevronsRight,
   Search,
 } from "lucide-react";
+import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { ArticleCard } from "./article-card";
 import { RSS_SOURCES } from "@/lib/rss/sources";
-import { useArticles } from "@/lib/queries/use-articles";
+import { useArticles, useUpdateArticle, type ArticleData } from "@/lib/queries/use-articles";
+import { blockIfDemo } from "@/lib/demo-mode";
 
-type FilterTab = "all" | "unread" | "bookmarked";
+type FilterTab = "all" | "unread" | "read" | "bookmarked";
 
 const PER_PAGE = 5;
 const PAGE_GROUP_SIZE = 5;
@@ -32,12 +42,15 @@ type SourceGroup = "" | "tech" | "news" | string;
 
 export function ArticlesClient() {
   const { data: allArticles = [], isLoading } = useArticles();
+  const updateArticle = useUpdateArticle();
   const [tab, setTab] = useState<FilterTab>("all");
   const [sourceFilter, setSourceFilter] = useState<SourceGroup>("");
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const [memoArticle, setMemoArticle] = useState<ArticleData | null>(null);
+  const [memoText, setMemoText] = useState("");
 
   // 드롭다운 외부 클릭 닫기
   useEffect(() => {
@@ -72,13 +85,16 @@ export function ArticlesClient() {
   const filtered =
     tab === "unread"
       ? searchFiltered.filter((a) => !a.is_read)
-      : tab === "bookmarked"
-        ? searchFiltered.filter((a) => a.is_bookmarked)
-        : searchFiltered;
+      : tab === "read"
+        ? searchFiltered.filter((a) => a.is_read)
+        : tab === "bookmarked"
+          ? searchFiltered.filter((a) => a.is_bookmarked)
+          : searchFiltered;
 
   const counts = {
     all: searchFiltered.length,
     unread: searchFiltered.filter((a) => !a.is_read).length,
+    read: searchFiltered.filter((a) => a.is_read).length,
     bookmarked: searchFiltered.filter((a) => a.is_bookmarked).length,
   };
 
@@ -188,6 +204,7 @@ export function ArticlesClient() {
         <TabsList>
           <TabsTrigger value="all">전체 ({counts.all})</TabsTrigger>
           <TabsTrigger value="unread">안 읽음 ({counts.unread})</TabsTrigger>
+          <TabsTrigger value="read">읽음 ({counts.read})</TabsTrigger>
           <TabsTrigger value="bookmarked">북마크 ({counts.bookmarked})</TabsTrigger>
         </TabsList>
 
@@ -205,7 +222,14 @@ export function ArticlesClient() {
           ) : (
             <div className="space-y-3">
               {paged.map((article) => (
-                <ArticleCard key={article.id} article={article} />
+                <ArticleCard
+                  key={article.id}
+                  article={article}
+                  onMemo={(a) => {
+                    setMemoArticle(a);
+                    setMemoText(a.memo || "");
+                  }}
+                />
               ))}
 
               {/* 페이지네이션 */}
@@ -216,6 +240,46 @@ export function ArticlesClient() {
           )}
         </TabsContent>
       </Tabs>
+
+      {/* 메모 모달 */}
+      <Dialog open={!!memoArticle} onOpenChange={(open) => !open && setMemoArticle(null)}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>메모</DialogTitle>
+            <p className="text-muted-foreground mt-1 line-clamp-1 text-xs">{memoArticle?.title}</p>
+          </DialogHeader>
+          <textarea
+            value={memoText}
+            onChange={(e) => setMemoText(e.target.value)}
+            placeholder="읽고 느낀 점, 정리, 감상 등을 자유롭게 적어보세요..."
+            className="border-input bg-background min-h-[200px] w-full resize-y rounded-md border p-3 text-sm leading-relaxed focus:ring-2 focus:ring-blue-500 focus:outline-none"
+          />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setMemoArticle(null)}>
+              취소
+            </Button>
+            <Button
+              onClick={() => {
+                if (blockIfDemo()) return;
+                if (!memoArticle) return;
+                const trimmed = memoText.trim();
+                updateArticle.mutate(
+                  { id: memoArticle.id, changes: { memo: trimmed || null } },
+                  {
+                    onSuccess: () => {
+                      toast.success("메모를 저장했습니다.");
+                      setMemoArticle(null);
+                    },
+                  },
+                );
+              }}
+              disabled={updateArticle.isPending}
+            >
+              저장
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
