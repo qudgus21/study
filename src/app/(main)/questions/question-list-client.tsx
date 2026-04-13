@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useMemo, useRef, useEffect } from "react";
+import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import Link from "next/link";
+import { useSearchParams, useRouter } from "next/navigation";
 import {
   Search,
   Trash2,
@@ -48,14 +49,28 @@ export function QuestionListClient() {
   const { data: questions = [], isLoading } = useQuestions();
   const deleteMutation = useDeleteQuestion();
 
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const categoryFilter = searchParams.get("category") ?? "전체";
+
   const [search, setSearch] = useState("");
-  const [categoryFilter, setCategoryFilter] = useState<string>(() => {
-    if (typeof window === "undefined") return "전체";
-    return new URLSearchParams(window.location.search).get("category") ?? "전체";
-  });
   const [difficultyFilter, setDifficultyFilter] = useState<string>("전체");
   const [sourceFilter, setSourceFilter] = useState<string>("전체");
   const [page, setPage] = useState(1);
+
+  const setCategoryFilter = useCallback(
+    (v: string) => {
+      const params = new URLSearchParams(searchParams.toString());
+      if (v === "전체") {
+        params.delete("category");
+      } else {
+        params.set("category", v);
+      }
+      router.replace(`/questions?${params.toString()}`);
+      setPage(1);
+    },
+    [searchParams, router],
+  );
 
   const allCategories = useMemo(() => {
     const names = new Set<string>();
@@ -268,7 +283,7 @@ function QuestionCard({
 }) {
   return (
     <Link href={`/questions/${question.id}`}>
-      <Card className="hover:bg-accent/50 border-border border transition-colors">
+      <Card className="hover:bg-accent/50 transition-colors">
         <CardContent className="flex items-start justify-between gap-3 px-4 py-3.5">
           <div className="min-w-0 flex-1 space-y-1.5">
             <div className="flex items-center gap-2">
