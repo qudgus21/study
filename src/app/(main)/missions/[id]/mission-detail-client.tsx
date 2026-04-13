@@ -30,13 +30,14 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { MarkdownContent } from "@/components/ui/markdown-content";
 import { useMission, useInvalidateMission } from "@/lib/queries/use-missions";
 
-const typeIcons = {
+// TODO: Phase 4에서 question-detail-client.tsx로 전면 교체 예정
+const typeIcons: Record<string, typeof BookOpen> = {
   concept: BookOpen,
   discussion: MessageSquare,
   code: Code,
 };
 
-const typeLabels = {
+const typeLabels: Record<string, string> = {
   concept: "개념 설명",
   discussion: "기술 토론",
   code: "코드 챌린지",

@@ -243,7 +243,7 @@ export function ArticlesClient() {
 
       {/* 메모 모달 */}
       <Dialog open={!!memoArticle} onOpenChange={(open) => !open && setMemoArticle(null)}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>메모</DialogTitle>
             <p className="text-muted-foreground mt-1 line-clamp-1 text-xs">{memoArticle?.title}</p>
@@ -252,7 +252,7 @@ export function ArticlesClient() {
             value={memoText}
             onChange={(e) => setMemoText(e.target.value)}
             placeholder="읽고 느낀 점, 정리, 감상 등을 자유롭게 적어보세요..."
-            className="border-input bg-background min-h-[200px] w-full resize-y rounded-md border p-3 text-sm leading-relaxed focus:ring-2 focus:ring-blue-500 focus:outline-none"
+            className="border-input bg-background min-h-[300px] w-full resize-y rounded-md border p-3 text-sm leading-relaxed focus:ring-2 focus:ring-blue-500 focus:outline-none"
           />
           <DialogFooter>
             <Button variant="outline" onClick={() => setMemoArticle(null)}>

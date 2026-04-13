@@ -1,20 +1,25 @@
-export type MissionType = "concept" | "discussion" | "code";
+export type QuestionDifficulty = "junior" | "mid" | "senior";
 
-export type AgentType =
-  | "senior-interviewer"
-  | "tech-lead-debater"
-  | "strict-code-reviewer"
-  | "junior-colleague"
-  | "answer-evaluator";
+export type QuestionSource = "resume" | "category" | "follow_up";
 
-export interface AgentPromptInput {
-  missionType: MissionType;
-  question: string;
+export type AgentType = "interview-evaluator" | "follow-up-generator";
+
+export interface EvalPromptInput {
+  questionTitle: string;
+  questionDescription?: string;
   userAnswer: string;
   codeSnippet?: string;
   attemptNumber: number;
   previousFeedback?: string;
-  categoryName: string;
+  categoryNames: string[];
+}
+
+export interface FollowUpPromptInput {
+  originalQuestion: string;
+  userAnswer: string;
+  score: number;
+  feedbackSummary: string;
+  categoryNames: string[];
 }
 
 export interface AgentPrompt {
@@ -27,5 +32,5 @@ export interface Agent {
   type: AgentType;
   name: string;
   description: string;
-  generatePrompt(input: AgentPromptInput): AgentPrompt;
+  generatePrompt(input: EvalPromptInput | FollowUpPromptInput): AgentPrompt;
 }

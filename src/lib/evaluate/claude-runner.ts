@@ -204,9 +204,10 @@ export function spawnClaude(options: RunnerOptions): ChildProcess {
 }
 
 export function buildEvalPrompt(params: {
-  question: string;
+  questionTitle: string;
+  questionDescription?: string;
   answer: string;
-  categoryName: string;
+  categoryNames: string[];
   attemptNumber: number;
   codeSnippet?: string;
 }): string {
@@ -221,10 +222,11 @@ export function buildEvalPrompt(params: {
 
   const parts = [
     `## 질문`,
-    params.question,
+    params.questionTitle,
+    ...(params.questionDescription ? [`\n${params.questionDescription}`] : []),
     "",
     `## 카테고리`,
-    params.categoryName,
+    params.categoryNames.join(", ") || "일반",
     "",
     `## 답변 (시도 #1)`,
     params.answer,
@@ -236,4 +238,29 @@ export function buildEvalPrompt(params: {
 
   parts.push("", "위 답변을 평가해주세요.");
   return parts.join("\n");
+}
+
+export function buildFollowUpPrompt(params: {
+  originalQuestion: string;
+  userAnswer: string;
+  score: number;
+  feedbackSummary: string;
+  categoryNames: string[];
+}): string {
+  return [
+    `## 원래 질문`,
+    params.originalQuestion,
+    "",
+    `## 카테고리`,
+    params.categoryNames.join(", ") || "일반",
+    "",
+    `## 지원자 답변`,
+    params.userAnswer,
+    "",
+    `## 평가 결과 요약`,
+    `점수: ${params.score}/100`,
+    params.feedbackSummary,
+    "",
+    "위 맥락을 바탕으로 자연스러운 꼬리질문 1개를 JSON 형식으로 생성해주세요.",
+  ].join("\n");
 }

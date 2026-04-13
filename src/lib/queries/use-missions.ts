@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "./keys";
-import type { MissionType } from "@/lib/agents";
+// TODO: Phase 4에서 use-questions.ts로 전면 교체 예정
+type MissionType = "concept" | "discussion" | "code";
 
 export interface MissionCardData {
   id: string;

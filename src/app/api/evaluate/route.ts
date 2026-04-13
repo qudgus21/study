@@ -1,18 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
-import { cliAgentMap } from "@/lib/agents";
-import type { MissionType } from "@/lib/agents";
 import { spawnClaude, parseStreamOutput, buildEvalPrompt } from "@/lib/evaluate/claude-runner";
 
 interface EvaluateRequest {
-  mission_id: string;
-  mission_type: MissionType;
-  question: string;
+  question_id: string;
+  question_title: string;
+  question_description?: string;
   answer: string;
-  category_name: string;
+  category_names: string[];
   code_snippet?: string;
   attempt_number: number;
   session_id?: string;
-  agent_override?: string;
 }
 
 function sseEvent(event: string, data: Record<string, unknown>): string {
@@ -28,35 +25,30 @@ export async function POST(req: NextRequest) {
   }
 
   const {
-    mission_type,
-    question,
+    question_title,
+    question_description,
     answer,
-    category_name,
+    category_names,
     code_snippet,
     attempt_number,
     session_id,
-    agent_override,
   } = body;
 
-  if (!mission_type || !question || !answer || !category_name || !attempt_number) {
+  if (!question_title || !answer || !attempt_number) {
     return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
   }
 
-  const agentName = agent_override ?? cliAgentMap[mission_type];
-  if (!agentName) {
-    return NextResponse.json({ error: `Unknown mission type: ${mission_type}` }, { status: 400 });
-  }
-
   const prompt = buildEvalPrompt({
-    question,
+    questionTitle: question_title,
+    questionDescription: question_description,
     answer,
-    categoryName: category_name,
+    categoryNames: category_names ?? [],
     attemptNumber: session_id ? attempt_number : 1,
     codeSnippet: code_snippet,
   });
 
   const childProcess = spawnClaude({
-    agentName,
+    agentName: "interview-evaluator",
     prompt,
     sessionId: session_id,
   });
