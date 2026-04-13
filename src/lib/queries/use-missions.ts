@@ -33,7 +33,7 @@ export interface MissionDetail {
 
 export function useMissions() {
   return useQuery({
-    queryKey: queryKeys.missions.all,
+    queryKey: queryKeys.questions.all,
     queryFn: async (): Promise<MissionCardData[]> => {
       const res = await fetch("/api/missions");
       if (!res.ok) throw new Error("Failed to fetch missions");
@@ -59,7 +59,7 @@ export function useMissions() {
 
 export function useMission(missionId: string) {
   return useQuery({
-    queryKey: queryKeys.missions.detail(missionId),
+    queryKey: queryKeys.questions.detail(missionId),
     queryFn: async (): Promise<MissionDetail> => {
       const res = await fetch(`/api/missions/${missionId}`);
       if (!res.ok) throw new Error("Failed to fetch mission");
@@ -90,8 +90,8 @@ export function useMission(missionId: string) {
 export function useInvalidateMission() {
   const queryClient = useQueryClient();
   return (missionId: string) => {
-    queryClient.invalidateQueries({ queryKey: queryKeys.missions.detail(missionId) });
-    queryClient.invalidateQueries({ queryKey: queryKeys.missions.all });
+    queryClient.invalidateQueries({ queryKey: queryKeys.questions.detail(missionId) });
+    queryClient.invalidateQueries({ queryKey: queryKeys.questions.all });
     queryClient.invalidateQueries({ queryKey: queryKeys.dashboard });
   };
 }
@@ -105,20 +105,20 @@ export function useDeleteMissionFromList() {
       if (!res.ok) throw new Error("Failed to delete mission");
     },
     onMutate: async (missionId) => {
-      await queryClient.cancelQueries({ queryKey: queryKeys.missions.all });
-      const previous = queryClient.getQueryData<MissionCardData[]>(queryKeys.missions.all);
-      queryClient.setQueryData<MissionCardData[]>(queryKeys.missions.all, (old) =>
+      await queryClient.cancelQueries({ queryKey: queryKeys.questions.all });
+      const previous = queryClient.getQueryData<MissionCardData[]>(queryKeys.questions.all);
+      queryClient.setQueryData<MissionCardData[]>(queryKeys.questions.all, (old) =>
         old?.filter((m) => m.id !== missionId),
       );
       return { previous };
     },
     onError: (_err, _id, context) => {
       if (context?.previous) {
-        queryClient.setQueryData(queryKeys.missions.all, context.previous);
+        queryClient.setQueryData(queryKeys.questions.all, context.previous);
       }
     },
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.missions.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.questions.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.categories.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.dashboard });
     },

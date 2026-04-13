@@ -4,14 +4,19 @@ export const queryKeys = {
   categories: {
     all: ["categories"] as const,
     detail: (id: string) => ["categories", id] as const,
-    missions: (id: string) => ["categories", id, "missions"] as const,
+    questions: (id: string) => ["categories", id, "questions"] as const,
   },
 
   articles: ["articles"] as const,
 
-  missions: {
-    all: ["missions"] as const,
-    detail: (id: string) => ["missions", id] as const,
+  questions: {
+    all: ["questions"] as const,
+    detail: (id: string) => ["questions", id] as const,
+  },
+
+  resumes: {
+    all: ["resumes"] as const,
+    detail: (id: string) => ["resumes", id] as const,
   },
 
   jd: {

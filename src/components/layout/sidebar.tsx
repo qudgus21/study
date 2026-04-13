@@ -4,7 +4,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   LayoutDashboard,
-  Target,
+  MessageCircleQuestion,
+  FileText,
   Newspaper,
   BarChart3,
   Library,
@@ -17,11 +18,11 @@ import { useUIStore } from "@/stores/ui-store";
 
 const navItems = [
   { href: "/dashboard", label: "대시보드", icon: LayoutDashboard },
-  { href: "/missions", label: "미션", icon: Target },
+  { href: "/resume", label: "이력서", icon: FileText },
+  { href: "/questions", label: "질문", icon: MessageCircleQuestion },
+  { href: "/categories", label: "카테고리", icon: Library },
   { href: "/articles", label: "아티클", icon: Newspaper },
   { href: "/jd-analysis", label: "JD 분석", icon: BarChart3 },
-
-  { href: "/categories", label: "카테고리", icon: Library },
   { href: "/settings", label: "설정", icon: Settings },
 ];
 

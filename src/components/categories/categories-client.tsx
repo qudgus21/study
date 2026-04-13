@@ -297,8 +297,8 @@ export function CategoriesClient() {
           }
         }
 
-        queryClient.invalidateQueries({ queryKey: queryKeys.categories.missions(categoryId) });
-        queryClient.invalidateQueries({ queryKey: queryKeys.missions.all });
+        queryClient.invalidateQueries({ queryKey: queryKeys.categories.questions(categoryId) });
+        queryClient.invalidateQueries({ queryKey: queryKeys.questions.all });
         queryClient.invalidateQueries({ queryKey: queryKeys.dashboard });
       } catch {
         setGenerateModal((prev) => ({

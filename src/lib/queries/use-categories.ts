@@ -44,7 +44,7 @@ export function useCategoryDetail(id: string) {
 
 export function useCategoryMissions(categoryId: string, enabled = true) {
   return useQuery({
-    queryKey: queryKeys.categories.missions(categoryId),
+    queryKey: queryKeys.categories.questions(categoryId),
     queryFn: async (): Promise<MissionData[]> => {
       const res = await fetch(`/api/categories/${categoryId}/missions`);
       if (!res.ok) throw new Error("Failed to fetch missions");
@@ -121,7 +121,7 @@ export function useDeleteCategory() {
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.categories.all });
-      queryClient.invalidateQueries({ queryKey: queryKeys.missions.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.questions.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.dashboard });
     },
   });
@@ -136,7 +136,7 @@ export function useDeleteMission() {
       if (!res.ok) throw new Error("Failed to delete mission");
     },
     onMutate: async ({ missionId, categoryId }) => {
-      const key = queryKeys.categories.missions(categoryId);
+      const key = queryKeys.categories.questions(categoryId);
       await queryClient.cancelQueries({ queryKey: key });
       const previous = queryClient.getQueryData<MissionData[]>(key);
       queryClient.setQueryData<MissionData[]>(key, (old) => old?.filter((m) => m.id !== missionId));
@@ -145,14 +145,14 @@ export function useDeleteMission() {
     onError: (_err, _vars, context) => {
       if (context?.previous) {
         queryClient.setQueryData(
-          queryKeys.categories.missions(context.categoryId),
+          queryKeys.categories.questions(context.categoryId),
           context.previous,
         );
       }
     },
     onSettled: (_data, _err, { categoryId }) => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.categories.missions(categoryId) });
-      queryClient.invalidateQueries({ queryKey: queryKeys.missions.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.categories.questions(categoryId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.questions.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.dashboard });
     },
   });
