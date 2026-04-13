@@ -94,7 +94,7 @@ ${input.previousFeedback ? `## 이전 피드백 (재시도 중)\n${input.previou
 ## 평가 요청
 위 루브릭과 캘리브레이션 기준에 따라 평가하세요.
 
-반드시 아래 형식으로 응답해주세요:
+서두/인사말/전치사 없이, 바로 아래 형식으로 응답해주세요:
 **Score: [N]/100**
 **Verdict: [PASS/RETRY]**
 
