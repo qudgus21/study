@@ -1,18 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import {
-  RefreshCw,
-  Play,
-  Sparkles,
-  Newspaper,
-  Briefcase,
-  Rss,
-  SlidersHorizontal,
-  Tag,
-  X,
-  Plus,
-} from "lucide-react";
+import { RefreshCw, Play, Rss, SlidersHorizontal, Tag, X, Plus, Briefcase } from "lucide-react";
 import { toast } from "sonner";
 import { blockIfDemo } from "@/lib/demo-mode";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -21,30 +10,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useSettings, useSaveSettings, type Settings } from "@/lib/queries/use-settings";
 import { useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/queries/keys";
-
-const CATEGORY_GENERATORS = [
-  {
-    key: "ai",
-    label: "AI 자율 생성",
-    description: "시니어 FE 개발자에게 적합한 학습 카테고리를 AI가 생성",
-    icon: Sparkles,
-    url: "/api/categories/generate/ai",
-  },
-  {
-    key: "jd",
-    label: "JD 기반",
-    description: "채용공고 인사이트 + 스킬 트렌드에서 학습 카테고리 생성",
-    icon: Briefcase,
-    url: "/api/categories/generate/jd",
-  },
-  {
-    key: "article",
-    label: "아티클 기반",
-    description: "기술 블로그 아티클에서 AI로 학습 카테고리 추출",
-    icon: Newspaper,
-    url: "/api/categories/generate/article",
-  },
-] as const;
 
 const DATA_COLLECTORS = [
   {
@@ -99,10 +64,7 @@ export function SettingsClient() {
   const saveSettings = useSaveSettings();
   const queryClient = useQueryClient();
 
-  // 로컬 편집 상태 (서버 데이터 기반)
   const [localSettings, setLocalSettings] = useState<Settings | null>(null);
-  const [categoryCounts, setTopicCounts] = useState({ ai: 5, jd: 5, article: 5 });
-  const [generatingType, setGeneratingType] = useState<string | null>(null);
   const [collectingKey, setCollectingKey] = useState<string | null>(null);
   const [lastRunMap, setLastRunMap] = useState<Record<string, string>>({});
   const [rssDays, setRssDays] = useState(1);
@@ -118,7 +80,6 @@ export function SettingsClient() {
   const composingRef = useRef(false);
   const modalLogsRef = useRef<HTMLDivElement>(null);
 
-  // 서버 데이터가 오면 로컬 상태 초기화
   useEffect(() => {
     if (serverSettings && !localSettings) {
       setLocalSettings(serverSettings);
@@ -146,75 +107,6 @@ export function SettingsClient() {
     } catch {
       toast.error("저장에 실패했습니다.");
     }
-  }
-
-  async function handleGenerateCategories(gen: (typeof CATEGORY_GENERATORS)[number]) {
-    if (blockIfDemo()) return;
-    setGeneratingType(gen.key);
-    setCollectModal({ open: true, label: gen.label, logs: [], done: false });
-
-    try {
-      const res = await fetch(gen.url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ count: categoryCounts[gen.key] }),
-      });
-
-      const reader = res.body?.getReader();
-      if (!reader) throw new Error("No reader");
-
-      const decoder = new TextDecoder();
-      let buffer = "";
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split("\n");
-        buffer = lines.pop() ?? "";
-
-        for (const line of lines) {
-          if (!line.startsWith("data: ")) continue;
-          try {
-            const data = JSON.parse(line.slice(6)) as Record<string, unknown>;
-            const log = formatCategorySSEEvent(data);
-            if (log) {
-              setCollectModal((prev) => ({
-                ...prev,
-                logs: [...prev.logs, log],
-                done: data.type === "done",
-              }));
-            }
-          } catch {
-            /* skip */
-          }
-        }
-      }
-
-      saveLastRun(`category_${gen.key}`);
-      setLastRunMap(getLastRunMap());
-      // 카테고리 생성 후 캐시 무효화
-      queryClient.invalidateQueries({ queryKey: queryKeys.categories.all });
-      queryClient.invalidateQueries({ queryKey: queryKeys.dashboard });
-    } catch {
-      setCollectModal((prev) => ({
-        ...prev,
-        logs: [...prev.logs, "카테고리 생성 실패"],
-        done: true,
-      }));
-    } finally {
-      setGeneratingType(null);
-    }
-  }
-
-  function formatCategorySSEEvent(data: Record<string, unknown>): string | null {
-    if (data.type === "log") return data.message as string;
-    if (data.type === "candidate") return `  → 후보: ${data.name}`;
-    if (data.type === "saved") return `  ✓ 저장: ${data.name}`;
-    if (data.type === "done") return `완료: ${data.created}개 카테고리 생성`;
-    if (data.type === "error") return `오류: ${data.message}`;
-    return null;
   }
 
   async function handleCollect(collector: (typeof DATA_COLLECTORS)[number]) {
@@ -259,7 +151,6 @@ export function SettingsClient() {
 
       saveLastRun(`collect_${collector.key}`);
       setLastRunMap(getLastRunMap());
-      // 수집 완료 후 관련 캐시 무효화
       if (collector.key === "rss") {
         queryClient.invalidateQueries({ queryKey: queryKeys.articles });
       } else {
@@ -290,7 +181,7 @@ export function SettingsClient() {
         return `${data.current}/${data.total} ${data.company} - ${data.position}${dup}`;
       }
       if (data.type === "skills") return `${data.message}`;
-      if (data.type === "ai_analysis") return `🤖 ${data.message}`;
+      if (data.type === "ai_analysis") return `${data.message}`;
       if (data.type === "done")
         return `완료: ${data.added}건 추가, ${data.skipped}건 중복, 스킬 ${data.skillsTracked}개`;
       if (data.type === "error") return `오류: ${data.message}`;
@@ -323,76 +214,6 @@ export function SettingsClient() {
 
   return (
     <div className="max-w-lg space-y-6">
-      {/* 카테고리 생성 */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="flex items-center gap-2 text-sm">
-            <Sparkles className="h-4 w-4" />
-            카테고리 생성
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {CATEGORY_GENERATORS.map((gen) => {
-            const lastRun = formatLastRun(lastRunMap[`category_${gen.key}`]);
-            return (
-              <div key={gen.key} className="space-y-2">
-                <div className="flex items-center gap-2.5">
-                  <gen.icon className="text-muted-foreground h-4 w-4 shrink-0" />
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <p className="text-sm font-medium">{gen.label}</p>
-                      {lastRun && (
-                        <span className="text-muted-foreground text-[10px]">{lastRun}</span>
-                      )}
-                    </div>
-                    <p className="text-muted-foreground text-xs">{gen.description}</p>
-                  </div>
-                </div>
-                <div className="flex items-center justify-end gap-2">
-                  <div className="flex items-center gap-1.5">
-                    <button
-                      onClick={() =>
-                        setTopicCounts((c) => ({ ...c, [gen.key]: Math.max(1, c[gen.key] - 1) }))
-                      }
-                      className="border-input hover:bg-accent flex h-6 w-6 cursor-pointer items-center justify-center rounded border text-xs transition-colors"
-                    >
-                      -
-                    </button>
-                    <span className="w-6 text-center text-sm font-medium tabular-nums">
-                      {categoryCounts[gen.key]}
-                    </span>
-                    <button
-                      onClick={() =>
-                        setTopicCounts((c) => ({ ...c, [gen.key]: Math.min(20, c[gen.key] + 1) }))
-                      }
-                      className="border-input hover:bg-accent flex h-6 w-6 cursor-pointer items-center justify-center rounded border text-xs transition-colors"
-                    >
-                      +
-                    </button>
-                    <span className="text-muted-foreground text-xs">개</span>
-                  </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleGenerateCategories(gen)}
-                    disabled={generatingType !== null}
-                    className="shrink-0 gap-1.5"
-                  >
-                    {generatingType === gen.key ? (
-                      <RefreshCw className="h-3 w-3 animate-spin" />
-                    ) : (
-                      <Play className="h-3 w-3" />
-                    )}
-                    생성
-                  </Button>
-                </div>
-                {gen.key !== "article" && <div className="border-border border-t" />}
-              </div>
-            );
-          })}
-        </CardContent>
-      </Card>
-
       {/* 데이터 수집 */}
       <Card>
         <CardHeader className="pb-3">
@@ -561,6 +382,7 @@ export function SettingsClient() {
           </Button>
         </CardContent>
       </Card>
+
       {/* 수집 모달 */}
       {collectModal.open && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
@@ -572,7 +394,7 @@ export function SettingsClient() {
             <div className="mb-3 flex items-center gap-2">
               {!collectModal.done && <RefreshCw className="h-4 w-4 animate-spin" />}
               <p className="text-sm font-medium">
-                {collectModal.label} {collectModal.done ? "생성 완료" : "생성 중..."}
+                {collectModal.label} {collectModal.done ? "완료" : "진행 중..."}
               </p>
             </div>
             <div

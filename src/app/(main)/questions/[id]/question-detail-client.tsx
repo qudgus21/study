@@ -20,6 +20,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { MarkdownContent } from "@/components/ui/markdown-content";
 import { useQuestion, useInvalidateQuestion } from "@/lib/queries/use-questions";
 import { useQuestionStore } from "@/stores/question-store";
+import { useSettings } from "@/lib/queries/use-settings";
 import { parseEvaluation } from "@/lib/utils/score-parser";
 
 const difficultyLabels: Record<string, string> = {
@@ -40,7 +41,9 @@ export function QuestionDetailClient() {
   const router = useRouter();
 
   const { data: question, isLoading } = useQuestion(questionId);
+  const { data: settings } = useSettings();
   const invalidateQuestion = useInvalidateQuestion();
+  const passScore = settings?.pass_score ?? 80;
 
   const store = useQuestionStore();
   const [showReference, setShowReference] = useState(false);
@@ -343,9 +346,9 @@ export function QuestionDetailClient() {
                 <div className="flex items-center gap-3">
                   <div
                     className={`rounded-full px-4 py-2 text-2xl font-bold ${
-                      store.parsedScore >= 80
+                      store.parsedScore >= passScore
                         ? "bg-green-100 text-green-800"
-                        : store.parsedScore >= 65
+                        : store.parsedScore >= passScore - 15
                           ? "bg-yellow-100 text-yellow-800"
                           : "bg-red-100 text-red-800"
                     }`}
@@ -353,10 +356,10 @@ export function QuestionDetailClient() {
                     {store.parsedScore}점
                   </div>
                   <Badge
-                    variant={store.parsedScore >= 80 ? "default" : "destructive"}
+                    variant={store.parsedScore >= passScore ? "default" : "destructive"}
                     className="text-sm"
                   >
-                    {store.parsedScore >= 80 ? "PASS" : "RETRY"}
+                    {store.parsedScore >= passScore ? "PASS" : "RETRY"}
                   </Badge>
                 </div>
               )}

@@ -12,6 +12,7 @@ export interface EvalPromptInput {
   attemptNumber: number;
   previousFeedback?: string;
   categoryNames: string[];
+  passScore?: number;
 }
 
 export interface FollowUpPromptInput {

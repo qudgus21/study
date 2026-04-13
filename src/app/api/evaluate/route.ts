@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { supabase } from "@/lib/supabase/client";
 import { spawnClaude, parseStreamOutput, buildEvalPrompt } from "@/lib/evaluate/claude-runner";
 
 interface EvaluateRequest {
@@ -37,6 +38,14 @@ export async function POST(req: NextRequest) {
   if (!question_title || !answer || !attempt_number) {
     return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
   }
+
+  // settings에서 통과 기준 점수 조회
+  const { data: settings } = await supabase
+    .from("settings")
+    .select("pass_score")
+    .eq("id", "global")
+    .single();
+  const passScore = settings?.pass_score ?? 80;
 
   const prompt = buildEvalPrompt({
     questionTitle: question_title,
