@@ -26,7 +26,7 @@ describe("Agent System", () => {
         categoryNames: ["JavaScript"],
       });
 
-      expect(prompt.systemPrompt).toContain("Senior Frontend Engineering Interviewer");
+      expect(prompt.systemPrompt).toContain("Frontend Engineering Interviewer");
       expect(prompt.userPrompt).toContain("클로저");
       expect(prompt.userPrompt).toContain("JavaScript");
       expect(prompt.fullClipboardText).toContain("Score:");
