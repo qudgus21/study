@@ -400,26 +400,67 @@ export function QuestionDetailClient() {
           <CardContent>
             <div className="space-y-2">
               {question.attempts.map((attempt, i) => (
-                <div
-                  key={attempt.id}
-                  className="text-muted-foreground flex items-center justify-between text-sm"
-                >
-                  <span>시도 #{i + 1}</span>
-                  <div className="flex items-center gap-2">
-                    {attempt.score != null && (
-                      <Badge variant={attempt.passed ? "default" : "outline"} className="text-xs">
-                        {attempt.score}점
-                      </Badge>
-                    )}
-                    <span className="text-xs">
-                      {new Date(attempt.createdAt).toLocaleDateString("ko-KR")}
-                    </span>
-                  </div>
-                </div>
+                <AttemptAccordion key={attempt.id} attempt={attempt} index={i} />
               ))}
             </div>
           </CardContent>
         </Card>
+      )}
+    </div>
+  );
+}
+
+function AttemptAccordion({
+  attempt,
+  index,
+}: {
+  attempt: import("@/lib/queries/use-questions").AttemptData;
+  index: number;
+}) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div className="border-border rounded-md border">
+      <button
+        onClick={() => setOpen(!open)}
+        className="hover:bg-accent/50 flex w-full cursor-pointer items-center justify-between px-3 py-2.5 text-sm transition-colors"
+      >
+        <span className="font-medium">시도 #{index + 1}</span>
+        <div className="flex items-center gap-2">
+          {attempt.score != null && (
+            <Badge variant={attempt.passed ? "default" : "outline"} className="text-xs">
+              {attempt.score}점
+            </Badge>
+          )}
+          <span className="text-muted-foreground text-xs">
+            {new Date(attempt.createdAt).toLocaleDateString("ko-KR")}
+          </span>
+          <ChevronRight
+            className={`text-muted-foreground h-4 w-4 transition-transform ${open ? "rotate-90" : ""}`}
+          />
+        </div>
+      </button>
+
+      {open && (
+        <div className="space-y-4 border-t px-3 py-3">
+          {/* 내 답변 */}
+          <div>
+            <p className="text-muted-foreground mb-1 text-xs font-medium">내 답변</p>
+            <div className="bg-muted rounded-md p-3 text-sm whitespace-pre-wrap">
+              {attempt.answerText}
+            </div>
+          </div>
+
+          {/* AI 평가 */}
+          {attempt.evalResult && (
+            <div>
+              <p className="text-muted-foreground mb-1 text-xs font-medium">평가 결과</p>
+              <div className="prose dark:prose-invert max-w-none text-sm">
+                <MarkdownContent>{attempt.evalResult}</MarkdownContent>
+              </div>
+            </div>
+          )}
+        </div>
       )}
     </div>
   );
