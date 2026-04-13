@@ -3,12 +3,11 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  LayoutDashboard,
   MessageCircleQuestion,
-  FileText,
-  Newspaper,
-  BarChart3,
   Library,
+  Newspaper,
+  FileText,
+  BarChart3,
   Settings,
   X,
   Anvil,
@@ -17,11 +16,10 @@ import { cn } from "@/lib/utils";
 import { useUIStore } from "@/stores/ui-store";
 
 const navItems = [
-  { href: "/dashboard", label: "대시보드", icon: LayoutDashboard },
-  { href: "/resume", label: "이력서", icon: FileText },
   { href: "/questions", label: "질문", icon: MessageCircleQuestion },
   { href: "/categories", label: "카테고리", icon: Library },
   { href: "/articles", label: "아티클", icon: Newspaper },
+  { href: "/resume", label: "이력서", icon: FileText },
   { href: "/jd-analysis", label: "JD 분석", icon: BarChart3 },
   { href: "/settings", label: "설정", icon: Settings },
 ];
@@ -49,7 +47,7 @@ export function Sidebar() {
       >
         {/* 로고 */}
         <div className="border-border flex h-16 items-center justify-between border-b px-4">
-          <Link href="/dashboard" className="flex items-center gap-2">
+          <Link href="/questions" className="flex items-center gap-2">
             <Anvil className="text-primary h-6 w-6" />
             <span className="text-lg font-bold">FE Dojo</span>
           </Link>
