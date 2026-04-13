@@ -24,9 +24,9 @@ import { useSettings } from "@/lib/queries/use-settings";
 import { parseEvaluation } from "@/lib/utils/score-parser";
 
 const difficultyLabels: Record<string, string> = {
-  junior: "Junior",
-  mid: "Mid",
-  senior: "Senior",
+  junior: "Lv.1",
+  mid: "Lv.2",
+  senior: "Lv.3",
 };
 
 const difficultyColors: Record<string, string> = {
@@ -198,7 +198,7 @@ export function QuestionDetailClient() {
   }
 
   return (
-    <div className="mx-auto max-w-4xl space-y-6 p-6">
+    <div className="space-y-5 px-4 py-5 md:px-6">
       {/* 헤더 */}
       <div className="space-y-3">
         <Button variant="ghost" size="sm" onClick={() => router.push("/questions")}>
@@ -209,7 +209,7 @@ export function QuestionDetailClient() {
         {/* 꼬리질문 체인 브레드크럼 */}
         {question.parentChain.length > 0 && (
           <div className="text-muted-foreground flex flex-wrap items-center gap-1 text-xs">
-            {question.parentChain.map((p, i) => (
+            {question.parentChain.map((p) => (
               <span key={p.id} className="flex items-center gap-1">
                 <Link href={`/questions/${p.id}`} className="hover:text-primary underline">
                   {p.title.length > 30 ? p.title.slice(0, 30) + "..." : p.title}
@@ -274,7 +274,7 @@ export function QuestionDetailClient() {
       )}
 
       {/* 답변 / 평가 / 결과 탭 */}
-      <Tabs value={store.step} className="space-y-4">
+      <Tabs value={store.step} className="space-y-3">
         <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="answering" onClick={() => store.setStep("answering")}>
             1. 답변
@@ -295,8 +295,8 @@ export function QuestionDetailClient() {
                 placeholder="면접 답변을 작성하세요..."
                 value={store.draftAnswer}
                 onChange={(e) => store.setDraftAnswer(e.target.value)}
-                rows={12}
-                className="resize-y font-mono text-sm"
+                rows={16}
+                className="min-h-[300px] resize-y font-mono text-sm"
               />
               <div className="flex justify-end">
                 <Button
