@@ -1,7 +1,20 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { RefreshCw, Play, Rss, SlidersHorizontal, Tag, X, Plus, Briefcase } from "lucide-react";
+import {
+  RefreshCw,
+  Play,
+  Rss,
+  SlidersHorizontal,
+  Tag,
+  X,
+  Plus,
+  Briefcase,
+  Sun,
+  Moon,
+  Monitor,
+} from "lucide-react";
+import { useTheme } from "@/components/providers/theme-provider";
 import { toast } from "sonner";
 import { blockIfDemo } from "@/lib/demo-mode";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -63,6 +76,7 @@ export function SettingsClient() {
   const { data: serverSettings, isLoading } = useSettings();
   const saveSettings = useSaveSettings();
   const queryClient = useQueryClient();
+  const { theme, setTheme } = useTheme();
 
   const [localSettings, setLocalSettings] = useState<Settings | null>(null);
   const [collectingKey, setCollectingKey] = useState<string | null>(null);
@@ -344,6 +358,31 @@ export function SettingsClient() {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
+          <div className="flex items-center justify-between">
+            <label className="text-sm">테마</label>
+            <div className="flex gap-1">
+              {(
+                [
+                  { value: "light", icon: Sun, label: "라이트" },
+                  { value: "dark", icon: Moon, label: "다크" },
+                  { value: "system", icon: Monitor, label: "시스템" },
+                ] as const
+              ).map(({ value, icon: Icon, label }) => (
+                <button
+                  key={value}
+                  onClick={() => setTheme(value)}
+                  className={`flex cursor-pointer items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs transition-colors ${
+                    theme === value
+                      ? "border-primary bg-primary/10 text-primary"
+                      : "border-input hover:bg-accent"
+                  }`}
+                >
+                  <Icon className="h-3.5 w-3.5" />
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
           <div className="flex items-center justify-between">
             <label className="text-sm">통과 기준 점수</label>
             <div className="flex items-center gap-2">
