@@ -18,7 +18,9 @@ export interface QuestionCardData {
   parentQuestionId: string | null;
   chainDepth: number;
   attemptCount: number;
-  lastScore: number | null;
+  passedCount: number;
+  bestScore: number | null;
+  isConfirmed: boolean;
   createdAt: string;
 }
 
@@ -44,6 +46,7 @@ export interface QuestionDetail {
   parentQuestionId: string | null;
   chainDepth: number;
   status: "pending" | "in_progress" | "passed";
+  confirmedAttemptId: string | null;
   categories: QuestionCategory[];
   attempts: AttemptData[];
   parentChain: { id: string; title: string }[];
@@ -72,7 +75,9 @@ export function useQuestions() {
             parentQuestionId: q.parent_question_id as string | null,
             chainDepth: (q.chain_depth as number) ?? 0,
             attemptCount: ((q.attempts as unknown[]) ?? []).length,
-            lastScore: getLastScore(q.attempts as Record<string, unknown>[] | null),
+            passedCount: getPassedCount(q.attempts as Record<string, unknown>[] | null),
+            bestScore: getBestScore(q.attempts as Record<string, unknown>[] | null),
+            isConfirmed: q.confirmed_attempt_id != null,
             createdAt: q.created_at as string,
           }) satisfies QuestionCardData,
       );
@@ -80,13 +85,17 @@ export function useQuestions() {
   });
 }
 
-function getLastScore(attempts: Record<string, unknown>[] | null): number | null {
+function getPassedCount(attempts: Record<string, unknown>[] | null): number {
+  if (!attempts) return 0;
+  return attempts.filter((a) => a.passed === true).length;
+}
+
+function getBestScore(attempts: Record<string, unknown>[] | null): number | null {
   if (!attempts || attempts.length === 0) return null;
-  const sorted = [...attempts].sort(
-    (a, b) =>
-      new Date(b.created_at as string).getTime() - new Date(a.created_at as string).getTime(),
-  );
-  return (sorted[0].score as number) ?? null;
+  const scores = attempts
+    .map((a) => a.score as number | null)
+    .filter((s): s is number => s != null);
+  return scores.length > 0 ? Math.max(...scores) : null;
 }
 
 // === 질문 상세 ===
@@ -109,6 +118,7 @@ export function useQuestion(questionId: string | null) {
         parentQuestionId: q.parent_question_id,
         chainDepth: q.chain_depth ?? 0,
         status: q.status,
+        confirmedAttemptId: q.confirmed_attempt_id ?? null,
         categories: q.categories ?? [],
         attempts: q.attempts ?? [],
         parentChain: q.parentChain ?? [],
@@ -129,6 +139,31 @@ export function useDeleteQuestion() {
       if (!res.ok) throw new Error("Failed to delete question");
     },
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.questions.all });
+    },
+  });
+}
+
+// === 최종 답변 확정 ===
+export function useConfirmAttempt() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      questionId,
+      attemptId,
+    }: {
+      questionId: string;
+      attemptId: string | null;
+    }) => {
+      const res = await fetch(`/api/questions/${questionId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ confirmed_attempt_id: attemptId }),
+      });
+      if (!res.ok) throw new Error("Failed to confirm attempt");
+    },
+    onSuccess: (_, { questionId }) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.questions.detail(questionId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.questions.all });
     },
   });

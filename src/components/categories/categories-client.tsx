@@ -26,7 +26,7 @@ export function CategoriesClient() {
     return categories.map((cat) => {
       const catQuestions = questions.filter((q) => q.categories.some((c) => c.id === cat.id));
       const answered = catQuestions.filter((q) => q.attemptCount > 0);
-      const scores = answered.map((q) => q.lastScore).filter((s): s is number => s != null);
+      const scores = answered.map((q) => q.bestScore).filter((s): s is number => s != null);
       const avgScore =
         scores.length > 0 ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) : null;
 

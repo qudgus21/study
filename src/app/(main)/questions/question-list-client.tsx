@@ -56,6 +56,8 @@ export function QuestionListClient() {
   const [search, setSearch] = useState("");
   const [difficultyFilter, setDifficultyFilter] = useState<string>("전체");
   const [sourceFilter, setSourceFilter] = useState<string>("전체");
+  const [showConfirmedOnly, setShowConfirmedOnly] = useState(false);
+  const [minPassedCount, setMinPassedCount] = useState(0);
   const [page, setPage] = useState(1);
 
   const setCategoryFilter = useCallback(
@@ -88,9 +90,19 @@ export function QuestionListClient() {
       if (difficultyFilter !== "전체" && q.difficulty !== difficultyFilter) return false;
       if (sourceFilter === "이력서" && q.sourceType !== "resume") return false;
       if (sourceFilter === "일반" && q.sourceType === "resume") return false;
+      if (showConfirmedOnly && !q.isConfirmed) return false;
+      if (minPassedCount > 0 && q.passedCount < minPassedCount) return false;
       return true;
     });
-  }, [questions, search, categoryFilter, difficultyFilter, sourceFilter]);
+  }, [
+    questions,
+    search,
+    categoryFilter,
+    difficultyFilter,
+    sourceFilter,
+    showConfirmedOnly,
+    minPassedCount,
+  ]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
@@ -135,8 +147,7 @@ export function QuestionListClient() {
           />
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          {/* 난이도 필터 */}
+        <div className="flex flex-wrap items-center gap-3">
           <Tabs
             value={difficultyFilter}
             onValueChange={(v) => {
@@ -152,7 +163,6 @@ export function QuestionListClient() {
             </TabsList>
           </Tabs>
 
-          {/* 출처 필터 */}
           <Tabs
             value={sourceFilter}
             onValueChange={(v) => {
@@ -167,7 +177,6 @@ export function QuestionListClient() {
             </TabsList>
           </Tabs>
 
-          {/* 카테고리 드롭다운 */}
           <CustomDropdown
             value={categoryFilter}
             options={allCategories}
@@ -176,6 +185,34 @@ export function QuestionListClient() {
               setPage(1);
             }}
           />
+
+          <label className="flex cursor-pointer items-center gap-1.5 text-sm">
+            <input
+              type="checkbox"
+              checked={showConfirmedOnly}
+              onChange={(e) => {
+                setShowConfirmedOnly(e.target.checked);
+                setPage(1);
+              }}
+              className="accent-primary h-3.5 w-3.5 cursor-pointer"
+            />
+            확정
+          </label>
+
+          <label className="flex items-center gap-1.5 text-sm">
+            통과
+            <input
+              type="number"
+              min={0}
+              max={99}
+              value={minPassedCount}
+              onChange={(e) => {
+                setMinPassedCount(Math.max(0, Number(e.target.value) || 0));
+                setPage(1);
+              }}
+              className="border-input bg-background w-10 rounded-md border px-1 py-1 text-center text-xs tabular-nums"
+            />
+          </label>
         </div>
       </div>
 
@@ -303,6 +340,9 @@ function QuestionCard({
               <Badge variant="outline" className={`text-[10px] ${statusColors[question.status]}`}>
                 {statusLabels[question.status]}
               </Badge>
+              {question.isConfirmed && (
+                <Badge className="bg-green-600 text-[10px] text-white">확정</Badge>
+              )}
               {question.categories.map((cat) => (
                 <Badge key={cat.id} variant="secondary" className="text-[10px]">
                   {cat.name}
@@ -310,8 +350,9 @@ function QuestionCard({
               ))}
               {question.attemptCount > 0 && (
                 <span className="text-muted-foreground ml-1 text-[10px]">
-                  {question.attemptCount}회
-                  {question.lastScore != null && ` · ${question.lastScore}점`}
+                  {question.attemptCount}회 시도
+                  {question.passedCount > 0 && ` · ${question.passedCount}회 통과`}
+                  {question.bestScore != null && ` · 최고 ${question.bestScore}점`}
                 </span>
               )}
             </div>

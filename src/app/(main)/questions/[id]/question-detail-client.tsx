@@ -18,7 +18,7 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { MarkdownContent } from "@/components/ui/markdown-content";
-import { useQuestion, useInvalidateQuestion } from "@/lib/queries/use-questions";
+import { useQuestion, useInvalidateQuestion, useConfirmAttempt } from "@/lib/queries/use-questions";
 import { useQuestionStore } from "@/stores/question-store";
 import { useSettings } from "@/lib/queries/use-settings";
 import { parseEvaluation } from "@/lib/utils/score-parser";
@@ -34,6 +34,12 @@ const difficultyColors: Record<string, string> = {
   mid: "bg-blue-100 text-blue-800",
   senior: "bg-purple-100 text-purple-800",
 };
+
+function stripPreamble(text: string): string {
+  const match = text.match(/(\*\*Score:|\*\*점수:|## )/);
+  if (!match || match.index === undefined || match.index === 0) return text;
+  return text.slice(match.index);
+}
 
 export function QuestionDetailClient() {
   const params = useParams();
@@ -315,24 +321,13 @@ export function QuestionDetailClient() {
           </Card>
         </TabsContent>
 
-        {/* 2. 평가 중 (스트리밍) */}
+        {/* 2. 평가 중 (로딩만 표시) */}
         <TabsContent value="evaluating">
           <Card>
-            <CardContent className="p-4">
-              {store.isEvaluating && (
-                <div className="text-muted-foreground mb-4 flex items-center gap-2 text-sm">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  면접관이 답변을 평가하고 있습니다...
-                </div>
-              )}
-              {store.streamingText && (
-                <div className="prose dark:prose-invert max-w-none">
-                  <MarkdownContent>{store.streamingText}</MarkdownContent>
-                </div>
-              )}
-              {store.evalError && (
-                <div className="mt-4 text-sm text-red-500">{store.evalError}</div>
-              )}
+            <CardContent className="flex flex-col items-center justify-center gap-3 py-16">
+              <Loader2 className="text-primary h-8 w-8 animate-spin" />
+              <p className="text-muted-foreground text-sm">면접관이 답변을 평가하고 있습니다...</p>
+              {store.evalError && <p className="text-sm text-red-500">{store.evalError}</p>}
             </CardContent>
           </Card>
         </TabsContent>
@@ -367,7 +362,7 @@ export function QuestionDetailClient() {
               {/* 평가 결과 마크다운 */}
               {store.evalResult && (
                 <div className="prose dark:prose-invert max-w-none">
-                  <MarkdownContent>{store.evalResult}</MarkdownContent>
+                  <MarkdownContent>{stripPreamble(store.evalResult)}</MarkdownContent>
                 </div>
               )}
 
@@ -400,7 +395,13 @@ export function QuestionDetailClient() {
           <CardContent>
             <div className="space-y-2">
               {question.attempts.map((attempt, i) => (
-                <AttemptAccordion key={attempt.id} attempt={attempt} index={i} />
+                <AttemptAccordion
+                  key={attempt.id}
+                  attempt={attempt}
+                  index={i}
+                  questionId={question.id}
+                  isConfirmed={question.confirmedAttemptId === attempt.id}
+                />
               ))}
             </div>
           </CardContent>
@@ -413,11 +414,66 @@ export function QuestionDetailClient() {
 function AttemptAccordion({
   attempt,
   index,
+  questionId,
+  isConfirmed,
 }: {
   attempt: import("@/lib/queries/use-questions").AttemptData;
   index: number;
+  questionId: string;
+  isConfirmed: boolean;
 }) {
   const [open, setOpen] = useState(false);
+  const [generating, setGenerating] = useState(false);
+  const router = useRouter();
+  const confirmMutation = useConfirmAttempt();
+
+  const handleFollowUp = useCallback(async () => {
+    setGenerating(true);
+    try {
+      const parsed = parseEvaluation(attempt.evalResult ?? "");
+      const res = await fetch(`/api/questions/${questionId}/follow-up`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          user_answer: attempt.answerText,
+          score: parsed.score ?? attempt.score ?? 0,
+          feedback_summary: parsed.feedbackSummary ?? attempt.feedbackSummary ?? "",
+        }),
+      });
+
+      if (!res.ok) throw new Error("꼬리질문 생성 실패");
+
+      const reader = res.body?.getReader();
+      const decoder = new TextDecoder();
+      if (!reader) return;
+
+      let buffer = "";
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() ?? "";
+        for (const line of lines) {
+          if (line.startsWith("data: ")) {
+            try {
+              const data = JSON.parse(line.slice(6));
+              if (data.question_id) {
+                router.push(`/questions/${data.question_id}`);
+                return;
+              }
+            } catch {
+              // ignore
+            }
+          }
+        }
+      }
+    } catch (err) {
+      console.error("Follow-up from history failed:", err);
+    } finally {
+      setGenerating(false);
+    }
+  }, [attempt, questionId, router]);
 
   return (
     <div className="border-border rounded-md border">
@@ -425,7 +481,10 @@ function AttemptAccordion({
         onClick={() => setOpen(!open)}
         className="hover:bg-accent/50 flex w-full cursor-pointer items-center justify-between px-3 py-2.5 text-sm transition-colors"
       >
-        <span className="font-medium">시도 #{index + 1}</span>
+        <span className="flex items-center gap-1.5 font-medium">
+          시도 #{index + 1}
+          {isConfirmed && <Badge className="bg-green-600 text-[10px] text-white">확정</Badge>}
+        </span>
         <div className="flex items-center gap-2">
           {attempt.score != null && (
             <Badge variant={attempt.passed ? "default" : "outline"} className="text-xs">
@@ -460,6 +519,42 @@ function AttemptAccordion({
               </div>
             </div>
           )}
+
+          {/* 꼬리질문 생성 */}
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleFollowUp();
+              }}
+              disabled={generating}
+              className="cursor-pointer"
+            >
+              {generating ? (
+                <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <MessageCircleQuestion className="mr-1.5 h-3.5 w-3.5" />
+              )}
+              꼬리질문 받기
+            </Button>
+            <Button
+              variant={isConfirmed ? "ghost" : "default"}
+              size="sm"
+              onClick={(e) => {
+                e.stopPropagation();
+                confirmMutation.mutate({
+                  questionId,
+                  attemptId: isConfirmed ? null : attempt.id,
+                });
+              }}
+              disabled={confirmMutation.isPending}
+              className="cursor-pointer"
+            >
+              {isConfirmed ? "확정 해제" : "최종 답변 확정"}
+            </Button>
+          </div>
         </div>
       )}
     </div>

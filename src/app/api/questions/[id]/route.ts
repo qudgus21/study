@@ -75,6 +75,24 @@ export async function GET(_request: NextRequest, { params }: Params) {
   }
 }
 
+export async function PATCH(request: NextRequest, { params }: Params) {
+  try {
+    const { id } = await params;
+    const body = await request.json();
+    const { confirmed_attempt_id } = body;
+
+    const { error } = await supabase
+      .from("questions")
+      .update({ confirmed_attempt_id: confirmed_attempt_id ?? null })
+      .eq("id", id);
+
+    if (error) throw error;
+    return NextResponse.json({ ok: true });
+  } catch (error) {
+    return NextResponse.json({ error: String(error) }, { status: 500 });
+  }
+}
+
 export async function DELETE(_request: NextRequest, { params }: Params) {
   try {
     const { id } = await params;
